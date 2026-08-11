@@ -28,20 +28,41 @@ jobs:
           unzip -q hafiz-cilik.zip -d extracted
           cp -a extracted/hafiz-cilik/. _site/
 
+      - name: Prepare icon tooling
+        run: python3 -m pip install --disable-pip-version-check pillow
+
       - name: Apply Hafizku features
         run: |
           python3 customize_hafizku.py _site
           python3 polish_child_ui.py _site
+          python3 refine_hafizku_v8.py _site
+          python3 generate_hafizku_icons.py _site
 
       - name: Verify build
         run: |
           grep -F "Hafizku" _site/index.html
           grep -F "Target Hafalan" _site/app.js
-          grep -F "stableAudioUrl" _site/app.js
-          grep -F "user-scalable=no" _site/index.html
-          grep -F "s-river" _site/index.html
-          grep -F "Hafizku v7" _site/app.css
+          grep -F "markers:" _site/app.js
+          grep -F "data-mark" _site/app.js
+          grep -F "apple-touch-icon.png" _site/index.html
+          grep -F "Hafizku v8" _site/app.css
+          grep -F "const VERSION = 'v8'" _site/sw.js
           node --check _site/app.js
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          root = Path('_site/icons')
+          expected = {
+              'icon-192.png': (192, 192),
+              'icon-512.png': (512, 512),
+              'icon-maskable-512.png': (512, 512),
+              'apple-touch-icon.png': (180, 180),
+          }
+          for name, size in expected.items():
+              img = Image.open(root / name)
+              assert img.size == size, (name, img.size, size)
+          print('PWA icons verified')
+          PY
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
