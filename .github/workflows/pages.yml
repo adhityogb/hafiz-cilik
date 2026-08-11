@@ -31,6 +31,7 @@ jobs:
       - name: Apply Hafizku features
         run: |
           python3 customize_hafizku.py _site
+          python3 polish_child_ui.py _site
 
       - name: Verify build
         run: |
@@ -38,6 +39,8 @@ jobs:
           grep -F "Target Hafalan" _site/app.js
           grep -F "stableAudioUrl" _site/app.js
           grep -F "user-scalable=no" _site/index.html
+          grep -F "s-river" _site/index.html
+          grep -F "Hafizku v7" _site/app.css
           node --check _site/app.js
 
       - name: Configure Pages
