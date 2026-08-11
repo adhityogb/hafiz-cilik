@@ -28,10 +28,152 @@ jobs:
           unzip -q hafiz-cilik.zip -d extracted
           cp -a extracted/hafiz-cilik/. _site/
 
+      - name: Patch reliable audio fallback
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('_site/app.js')
+          s = p.read_text()
+
+          s = s.replace("  audio.crossOrigin = 'anonymous';\n", "")
+
+          marker = "const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';\n"
+          insert = marker + """
+// Fallback audio yang lebih stabil untuk browser mobile/iOS.
+// Quran Foundation memakai pola /Reciter/mp3/SSSAAA.mp3.
+const QF_AUDIO_BASE = 'https://verses.quran.foundation/Alafasy/mp3';
+let audioSourceAttempt = 0;
+
+function qfAudioUrl(idx) {
+  const surah = String(state.surah.id).padStart(3, '0');
+  const ayah = String(state.verses[idx].no).padStart(3, '0');
+  return `${QF_AUDIO_BASE}/${surah}${ayah}.mp3`;
+}
+
+function audioSources(idx) {
+  return [
+    audioUrl(state.reciter, state.verses[idx].global),
+    qfAudioUrl(idx)
+  ];
+}
+"""
+          if marker not in s:
+              raise SystemExit('SILENCE marker not found')
+          s = s.replace(marker, insert, 1)
+
+          old_start = """function start(idx) {
+  const a = makeAudio();
+  unlocked = true;
+  a.src = audioUrl(state.reciter, state.verses[idx].global);
+  a.playbackRate = state.speed;
+  const p = a.play();
+  if (p && p.catch) p.catch(err => {
+    if (err && err.name === 'NotAllowedError') {
+      const st = statusOf(idx);
+      if (st) st.textContent = 'Ketuk sekali lagi untuk memulai suara';
+    } else {
+      onAudioError();
+    }
+  });
+}
+"""
+          new_start = """function start(idx, sourceIndex = 0) {
+  const a = makeAudio();
+  unlocked = true;
+  audioSourceAttempt = sourceIndex;
+  const sources = audioSources(idx);
+  a.src = sources[Math.min(sourceIndex, sources.length - 1)];
+  a.playbackRate = state.speed;
+  const p = a.play();
+  if (p && p.catch) p.catch(err => {
+    if (err && err.name === 'NotAllowedError') {
+      const st = statusOf(idx);
+      if (st) st.textContent = 'Ketuk sekali lagi untuk memulai suara';
+    } else {
+      onAudioError();
+    }
+  });
+}
+"""
+          if old_start not in s:
+              raise SystemExit('start() block not found')
+          s = s.replace(old_start, new_start, 1)
+
+          old_error = """function onAudioError() {
+  const cur = state.playing;
+  const idx = cur ? cur.idx : null;
+  stopAll();
+  if (idx !== null) {
+    const st = statusOf(idx);
+    if (st) st.textContent = navigator.onLine
+      ? 'Suara gagal dimuat — coba qari lain di Pengaturan'
+      : 'Suara ini belum tersimpan. Sambungkan internet dulu, lalu tekan tombol simpan.';
+  }
+}
+"""
+          new_error = """function onAudioError() {
+  const cur = state.playing;
+  const idx = cur ? cur.idx : null;
+
+  // Kalau CDN utama gagal, otomatis coba Quran Foundation (Alafasy).
+  if (cur && idx !== null) {
+    const sources = audioSources(idx);
+    const next = audioSourceAttempt + 1;
+    if (next < sources.length) {
+      const st = statusOf(idx);
+      if (st) st.textContent = 'Mencoba sumber suara cadangan…';
+      start(idx, next);
+      return;
+    }
+  }
+
+  stopAll();
+  if (idx !== null) {
+    const st = statusOf(idx);
+    if (st) st.textContent = navigator.onLine
+      ? 'Suara belum bisa dimuat — coba lagi beberapa saat'
+      : 'Suara ini belum tersimpan. Sambungkan internet dulu, lalu tekan tombol simpan.';
+  }
+}
+"""
+          if old_error not in s:
+              raise SystemExit('onAudioError() block not found')
+          s = s.replace(old_error, new_error, 1)
+
+          # Prefetch sumber cadangan juga, agar perpindahan terasa lebih cepat.
+          old_warm = """function warm(idx) {
+  const v = state.verses[idx];
+  if (!v) return;
+  const url = audioUrl(state.reciter, v.global);
+  fetch(url, { mode: 'cors' }).catch(() => fetch(url, { mode: 'no-cors' }).catch(() => {}));
+}
+"""
+          new_warm = """function warm(idx) {
+  const v = state.verses[idx];
+  if (!v) return;
+  for (const url of audioSources(idx)) {
+    fetch(url, { mode: 'no-cors' }).catch(() => {});
+  }
+}
+"""
+          if old_warm in s:
+              s = s.replace(old_warm, new_warm, 1)
+
+          p.write_text(s)
+
+          sw = Path('_site/sw.js')
+          sws = sw.read_text()
+          sws = sws.replace("const VERSION = 'v1';", "const VERSION = 'v2';")
+          sws = sws.replace(
+              "if (url.hostname === 'cdn.islamic.network') {",
+              "if (url.hostname === 'cdn.islamic.network' || url.hostname === 'verses.quran.foundation') {"
+          )
+          sw.write_text(sws)
+          PY
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
