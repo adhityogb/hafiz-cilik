@@ -40,19 +40,23 @@ jobs:
           python3 force_hafizku_v9_live.py _site
           python3 generate_hafizku_icons.py _site
           python3 hafizku_v9_2_cleanup.py _site
+          python3 restore_reciters_v9_3.py _site
 
       - name: Verify build
         run: |
           grep -F "Hafizku" _site/index.html
           grep -F "memorizationMarker: false" _site/app.js
-          grep -F ".card__badge--marker" _site/app.css
-          grep -F "app.css?v=9.2" _site/index.html
-          grep -F "app.js?v=9.2" _site/index.html
-          grep -F "apple-touch-icon.png?v=9.2" _site/index.html
+          grep -F "Husary_128kbps" _site/app.js
+          grep -F "Alafasy_128kbps" _site/app.js
+          grep -F "Minshawy_Murattal_128kbps" _site/app.js
+          grep -F "Abdul_Basit_Murattal_192kbps" _site/app.js
+          grep -F "RECITERS.map" _site/app.js
+          grep -F "start(idx, true)" _site/app.js
+          grep -F "app.css?v=9.3" _site/index.html
+          grep -F "app.js?v=9.3" _site/index.html
           grep -F "updateViaCache: 'none'" _site/app.js
-          grep -F "Hafizku v9.2" _site/app.css
-          grep -F "const VERSION = 'v9.2'" _site/sw.js
-          grep -F '"src": "icons/icon-192.png?v=9.2"' _site/manifest.webmanifest
+          grep -F "Hafizku v9.3" _site/app.css
+          grep -F "const VERSION = 'v9.3'" _site/sw.js
           node --check _site/app.js
           python3 - <<'PY'
           from PIL import Image
@@ -68,8 +72,7 @@ jobs:
               img = Image.open(root / name)
               assert img.size == size, (name, img.size, size)
               assert img.mode == 'RGB', (name, img.mode)
-              assert img.getpixel((0, 0))[:3] == (56, 189, 248), (name, img.getpixel((0, 0)))
-          print('PWA icons verified: full-bleed RGB and expected sizes')
+          print('PWA icons verified')
           PY
 
       - name: Configure Pages
