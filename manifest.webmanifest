@@ -1,0 +1,17 @@
+{
+  "name": "Hafiz Cilik — Belajar Hafal Juz 30",
+  "short_name": "Hafiz Cilik",
+  "description": "Mendengar dan menghafal Juz 30 untuk anak, dengan pengulangan ayat dan jeda untuk menirukan. Bisa dipakai tanpa internet.",
+  "lang": "id",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#E8F2FD",
+  "theme_color": "#E8F2FD",
+  "categories": ["education", "kids"],
+  "icons": [
+    { "src": "icons/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
