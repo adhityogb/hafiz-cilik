@@ -45,7 +45,7 @@ jobs:
           grep -F "Target Hafalan" _site/app.js
           grep -F "markers:" _site/app.js
           grep -F "data-mark" _site/app.js
-          grep -F "ayat-number__play" _site/app.js
+          grep -F "ayah-number__play" _site/app.js
           grep -F "apple-touch-icon.png" _site/index.html
           grep -F "Hafizku v9" _site/app.css
           grep -F "const VERSION = 'v9'" _site/sw.js
