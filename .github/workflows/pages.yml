@@ -37,6 +37,7 @@ jobs:
           python3 polish_child_ui_v2.py _site
           python3 refine_hafizku_v8.py _site
           python3 hafizku_palette_v9.py _site
+          python3 force_hafizku_v9_live.py _site
           python3 generate_hafizku_icons.py _site
 
       - name: Verify build
@@ -46,9 +47,12 @@ jobs:
           grep -F "markers:" _site/app.js
           grep -F "data-mark" _site/app.js
           grep -F "ayah-number__play" _site/app.js
-          grep -F "apple-touch-icon.png" _site/index.html
-          grep -F "Hafizku v9" _site/app.css
-          grep -F "const VERSION = 'v9'" _site/sw.js
+          grep -F "app.css?v=9.1" _site/index.html
+          grep -F "app.js?v=9.1" _site/index.html
+          grep -F "hafizku-build" _site/index.html
+          grep -F "updateViaCache: 'none'" _site/app.js
+          grep -F "Hafizku v9.1" _site/app.css
+          grep -F "const VERSION = 'v9.1'" _site/sw.js
           node --check _site/app.js
           python3 - <<'PY'
           from PIL import Image
