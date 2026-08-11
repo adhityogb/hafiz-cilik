@@ -34,7 +34,7 @@ jobs:
       - name: Apply Hafizku features
         run: |
           python3 customize_hafizku.py _site
-          python3 polish_child_ui.py _site
+          python3 polish_child_ui_v2.py _site
           python3 refine_hafizku_v8.py _site
           python3 generate_hafizku_icons.py _site
 
