@@ -28,22 +28,46 @@ jobs:
           unzip -q hafiz-cilik.zip -d extracted
           cp -a extracted/hafiz-cilik/. _site/
 
-      - name: Install mobile audio fix
+      - name: Patch audio directly in app.js
         run: |
-          cp audio-fix.js _site/audio-fix.js
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('_site/index.html')
+
+          p = Path('_site/app.js')
           s = p.read_text()
-          s = s.replace('<script src="app.js"></script>', '<script src="app.js"></script>\n<script src="audio-fix.js?v=3"></script>')
+
+          old = "  audio.crossOrigin = 'anonymous';\n"
+          if old not in s:
+              raise SystemExit('Expected crossOrigin line not found')
+          s = s.replace(old, '', 1)
+
+          old = "  a.src = audioUrl(state.reciter, state.verses[idx].global);\n"
+          new = "  a.src = `https://the-quran-project.github.io/Quran-Audio/Data/1/${state.surah.id}_${state.verses[idx].no}.mp3`;\n"
+          if old not in s:
+              raise SystemExit('Expected playback URL line not found')
+          s = s.replace(old, new, 1)
+
+          old = "  const url = audioUrl(state.reciter, v.global);\n"
+          new = "  const url = `https://the-quran-project.github.io/Quran-Audio/Data/1/${state.surah.id}_${v.no}.mp3`;\n"
+          if old not in s:
+              raise SystemExit('Expected warm URL line not found')
+          s = s.replace(old, new, 1)
+
           p.write_text(s)
 
+          # Force installed browsers/PWAs to discard the old shell cache.
           sw = Path('_site/sw.js')
-          s = sw.read_text()
-          s = s.replace("const VERSION = 'v1';", "const VERSION = 'v3';")
-          s = s.replace("'./app.js',", "'./app.js',\n  './audio-fix.js?v=3',")
-          sw.write_text(s)
+          sws = sw.read_text()
+          sws = sws.replace("const VERSION = 'v1';", "const VERSION = 'v4';")
+          sw.write_text(sws)
           PY
+
+          # Verify the actual deploy payload, not merely the workflow source.
+          grep -F "the-quran-project.github.io/Quran-Audio/Data/1/" _site/app.js
+          if grep -Fq "audio.crossOrigin = 'anonymous'" _site/app.js; then
+            echo 'Old CORS setting is still present' >&2
+            exit 1
+          fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
