@@ -5,10 +5,10 @@ from PIL import Image, ImageDraw
 root = Path(sys.argv[1] if len(sys.argv) > 1 else '_site') / 'icons'
 root.mkdir(parents=True, exist_ok=True)
 
-BG = '#F6F9FF'
-OUTER = '#8C77DC'
-OUTER2 = '#5EB7E8'
-GOLD = '#FFD567'
+SKY = '#38BDF8'
+SKY_DARK = '#0284C7'
+YELLOW = '#FDE047'
+GOLD = '#F59E0B'
 INK = '#243A63'
 WHITE = '#FFFFFF'
 
@@ -18,30 +18,78 @@ def rounded_box(draw, xy, radius, fill, outline=None, width=1):
 
 
 def draw_icon(size):
-    img = Image.new('RGBA', (size, size), BG)
+    # Full-bleed RGB artwork. iOS/Android apply their own rounded mask, so avoid
+    # transparent corners and nested outer frames that can look like a tiny icon.
+    img = Image.new('RGB', (size, size), SKY)
     d = ImageDraw.Draw(img)
-    pad = int(size * 0.08)
-    rounded_box(d, (pad, pad, size-pad, size-pad), int(size*0.22), '#FFFFFF', OUTER, max(4, size//64))
-    rounded_box(d, (int(size*0.16), int(size*0.14), int(size*0.84), int(size*0.86)), int(size*0.18), '#E9F4FF', OUTER2, max(3, size//96))
 
-    bx0, by0, bx1, by1 = int(size*0.26), int(size*0.26), int(size*0.74), int(size*0.74)
-    rounded_box(d, (bx0, by0, bx1, by1), int(size*0.09), GOLD, INK, max(4, size//80))
-    d.line((size*0.5, by0+size*0.05, size*0.5, by1-size*0.05), fill=INK, width=max(4, size//80))
-    d.arc((bx0+size*0.05, by0+size*0.12, size*0.5, by1-size*0.1), start=255, end=80, fill=INK, width=max(4, size//80))
-    d.arc((size*0.5, by0+size*0.12, bx1-size*0.05, by1-size*0.1), start=100, end=285, fill=INK, width=max(4, size//80))
+    # Very subtle lower accent keeps the icon playful without clutter.
+    d.ellipse(
+        (int(size * -0.10), int(size * 0.68), int(size * 0.55), int(size * 1.28)),
+        fill='#7DD3FC'
+    )
 
-    mx, my = int(size*0.67), int(size*0.34)
-    r = int(size*0.06)
-    d.ellipse((mx-r, my-r, mx+r, my+r), fill=WHITE)
-    d.ellipse((mx-r+int(r*0.45), my-r, mx+r+int(r*0.45), my+r), fill=GOLD)
-    sx, sy = int(size*0.58), int(size*0.31)
-    sr = max(2, size//48)
-    d.polygon([(sx, sy-sr), (sx+sr, sy), (sx, sy+sr), (sx-sr, sy)], fill=WHITE)
+    # Central yellow tile stays inside the maskable safe zone.
+    x0, y0, x1, y1 = int(size * 0.19), int(size * 0.18), int(size * 0.81), int(size * 0.82)
+    rounded_box(
+        d, (x0, y0, x1, y1), int(size * 0.16),
+        YELLOW, GOLD, max(4, int(size * 0.025))
+    )
+
+    # Open-book mark: bold, simple strokes remain readable at home-screen size.
+    cx = size * 0.50
+    top = size * 0.34
+    bottom = size * 0.67
+    left = size * 0.31
+    right = size * 0.69
+    mid_gap = size * 0.018
+    stroke = max(4, int(size * 0.032))
+
+    # Left and right page outlines.
+    d.line(
+        [(cx - mid_gap, top + size * 0.025),
+         (cx - size * 0.075, top),
+         (left, top + size * 0.035),
+         (left, bottom - size * 0.025),
+         (cx - mid_gap, bottom)],
+        fill=INK, width=stroke, joint='curve'
+    )
+    d.line(
+        [(cx + mid_gap, top + size * 0.025),
+         (cx + size * 0.075, top),
+         (right, top + size * 0.035),
+         (right, bottom - size * 0.025),
+         (cx + mid_gap, bottom)],
+        fill=INK, width=stroke, joint='curve'
+    )
+    d.line((cx, top + size * 0.03, cx, bottom), fill=INK, width=max(3, int(size * 0.022)))
+
+    # Small white star accent, separated from the book so it stays legible.
+    sx, sy = int(size * 0.70), int(size * 0.27)
+    r = max(3, int(size * 0.035))
+    d.polygon(
+        [(sx, sy-r), (sx+int(r*.45), sy-int(r*.45)), (sx+r, sy),
+         (sx+int(r*.45), sy+int(r*.45)), (sx, sy+r),
+         (sx-int(r*.45), sy+int(r*.45)), (sx-r, sy),
+         (sx-int(r*.45), sy-int(r*.45))],
+        fill=WHITE
+    )
     return img
 
-for size, name in [(192, 'icon-192.png'), (512, 'icon-512.png'), (512, 'icon-maskable-512.png'), (180, 'apple-touch-icon.png')]:
-    draw_icon(size).save(root / name)
 
-(root / 'favicon.svg').write_text('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="4" y="4" width="56" height="56" rx="16" fill="#F6F9FF" stroke="#8C77DC" stroke-width="3"/><rect x="14" y="14" width="36" height="36" rx="10" fill="#FFD567" stroke="#243A63" stroke-width="3"/><path d="M32 20v24" stroke="#243A63" stroke-width="3" fill="none"/><path d="M20 26c5-3 8-3 12 0v14c-4-3-7-3-12 0z" fill="none" stroke="#243A63" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M44 26c-5-3-8-3-12 0v14c4-3 7-3 12 0z" fill="none" stroke="#243A63" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>''')
+for size, name in [
+    (192, 'icon-192.png'),
+    (512, 'icon-512.png'),
+    (512, 'icon-maskable-512.png'),
+    (180, 'apple-touch-icon.png'),
+]:
+    draw_icon(size).save(root / name, optimize=True)
 
-print('Hafizku PWA icons generated')
+(root / 'favicon.svg').write_text('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#38BDF8"/>
+  <rect x="12" y="11" width="40" height="42" rx="11" fill="#FDE047" stroke="#F59E0B" stroke-width="3"/>
+  <path d="M31 23c-4-3-8-3-13-1v20c5-2 9-2 13 1M33 23c4-3 8-3 13-1v20c-5-2-9-2-13 1M32 24v19" fill="none" stroke="#243A63" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M45 16l1.3 2.7L49 20l-2.7 1.3L45 24l-1.3-2.7L41 20l2.7-1.3z" fill="#fff"/>
+</svg>''')
+
+print('Hafizku clean PWA icons generated')
