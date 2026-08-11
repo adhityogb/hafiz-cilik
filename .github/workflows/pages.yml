@@ -1,4 +1,4 @@
-name: Deploy Hafiz Cilik to GitHub Pages
+name: Deploy Hafizku to GitHub Pages
 
 on:
   push:
@@ -28,51 +28,17 @@ jobs:
           unzip -q hafiz-cilik.zip -d extracted
           cp -a extracted/hafiz-cilik/. _site/
 
-      - name: Patch audio to EveryAyah source
+      - name: Apply Hafizku features
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          python3 customize_hafizku.py _site
 
-          p = Path('_site/app.js')
-          s = p.read_text()
-
-          s = s.replace("  audio.crossOrigin = 'anonymous';\n", "", 1)
-
-          old = "  a.src = audioUrl(state.reciter, state.verses[idx].global);\n"
-          new = "  a.src = `https://everyayah.com/data/Alafasy_128kbps/${String(state.surah.id).padStart(3, '0')}${String(state.verses[idx].no).padStart(3, '0')}.mp3`;\n"
-          if old not in s:
-              raise SystemExit('Expected playback URL line not found')
-          s = s.replace(old, new, 1)
-
-          old = "  const url = audioUrl(state.reciter, v.global);\n"
-          new = "  const url = `https://everyayah.com/data/Alafasy_128kbps/${String(state.surah.id).padStart(3, '0')}${String(v.no).padStart(3, '0')}.mp3`;\n"
-          if old not in s:
-              raise SystemExit('Expected warm URL line not found')
-          s = s.replace(old, new, 1)
-
-          # Make the visible error text identify this deployment, so we can tell
-          # immediately whether Safari is still serving an old service worker.
-          s = s.replace(
-            "'Suara gagal dimuat — coba qari lain di Pengaturan'",
-            "'Audio v5 gagal dimuat — sumber EveryAyah tidak dapat diputar'"
-          )
-
-          p.write_text(s)
-
-          sw = Path('_site/sw.js')
-          sws = sw.read_text()
-          sws = sws.replace("const VERSION = 'v1';", "const VERSION = 'v5';")
-          # Do not intercept cross-origin EveryAyah requests; Safari handles media
-          # loading/range requests directly.
-          sw.write_text(sws)
-          PY
-
-          grep -F "everyayah.com/data/Alafasy_128kbps/" _site/app.js
-          grep -F "Audio v5 gagal dimuat" _site/app.js
-          if grep -Fq "audio.crossOrigin = 'anonymous'" _site/app.js; then
-            echo 'Old CORS setting is still present' >&2
-            exit 1
-          fi
+      - name: Verify build
+        run: |
+          grep -F "Hafizku" _site/index.html
+          grep -F "Target Hafalan" _site/app.js
+          grep -F "stableAudioUrl" _site/app.js
+          grep -F "user-scalable=no" _site/index.html
+          node --check _site/app.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
