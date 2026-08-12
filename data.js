@@ -63,6 +63,7 @@ const LEVELS = [
 ];
 
 const RECITERS = [
+  { id: "ar.husary_muallim",     name: "Al-Husary Mu’allim", note: "untuk anak — pelan, jelas, mudah ditirukan" },
   { id: "ar.husary",             name: "Syekh Al-Husary",   note: "pelan, jelas — paling enak untuk menirukan" },
   { id: "ar.alafasy",            name: "Syekh Al-Afasy",    note: "merdu, tempo sedang" },
   { id: "ar.minshawi",           name: "Syekh Al-Minsyawi", note: "lembut" },
@@ -73,13 +74,14 @@ const RECITERS = [
 /* Konfigurasi runtime tunggal. Service worker memuat file ini juga lewat
  * importScripts('./data.js'), jadi host audio dan versi cache tidak pernah
  * didefinisikan ganda. */
-const APP_VERSION = '10.0.1';
+const APP_VERSION = '10.0.2';
 
 const AUDIO_CONFIG = Object.freeze({
   everyayah: Object.freeze({
     host: 'everyayah.com',
     basePath: '/data',
     folders: Object.freeze({
+      'ar.husary_muallim': 'Husary_Muallim_128kbps',
       'ar.husary': 'Husary_128kbps',
       'ar.alafasy': 'Alafasy_128kbps',
       'ar.minshawi': 'Minshawy_Murattal_128kbps',
