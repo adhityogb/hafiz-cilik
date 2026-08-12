@@ -1,4 +1,4 @@
-name: Flatten Hafizku source once
+name: Apply final Hafizku source once
 
 on:
   push:
@@ -9,53 +9,37 @@ permissions:
   contents: write
 
 jobs:
-  flatten:
-    if: ${{ !contains(github.event.head_commit.message, '[flattened-source]') }}
+  apply:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Reproduce current v9.3 site exactly
+      - name: Detect staged source
+        id: staged
         run: |
-          rm -rf _site extracted
-          mkdir -p _site extracted
-          unzip -q hafiz-cilik.zip -d extracted
-          cp -a extracted/hafiz-cilik/. _site/
-          python3 -m pip install --disable-pip-version-check pillow
-          python3 customize_hafizku.py _site
-          python3 polish_child_ui_v2.py _site
-          python3 refine_hafizku_v8.py _site
-          python3 hafizku_palette_v9.py _site
-          python3 force_hafizku_v9_live.py _site
-          python3 generate_hafizku_icons.py _site
-          python3 hafizku_v9_2_cleanup.py _site
-          python3 restore_reciters_v9_3.py _site
-          node --check _site/app.js
+          if [ -f final-source.tar.gz ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Promote generated site to repository root
+      - name: Apply staged source
+        if: steps.staged.outputs.ready == 'true'
         run: |
-          cp _site/index.html ./index.html
-          cp _site/app.css ./app.css
-          cp _site/app.js ./app.js
-          cp _site/data.js ./data.js
-          cp _site/sw.js ./sw.js
-          cp _site/manifest.webmanifest ./manifest.webmanifest
-          rm -rf ./icons
-          cp -a _site/icons ./icons
-          if [ -f _site/README.md ]; then cp _site/README.md ./README.md; fi
+          tar -xzf final-source.tar.gz
+          rm -f final-source.tar.gz audio-fix.js
+          node --check app.js
+          node --check data.js
+          node --check sw.js
 
-          rm -f hafiz-cilik.zip \
-            customize_hafizku.py polish_child_ui_v2.py refine_hafizku_v8.py \
-            hafizku_palette_v9.py force_hafizku_v9_live.py generate_hafizku_icons.py \
-            hafizku_v9_2_cleanup.py restore_reciters_v9_3.py polish_child_ui.py
-          rm -rf _site extracted
-
-      - name: Commit flattened source only
+      - name: Commit final source
+        if: steps.staged.outputs.ready == 'true'
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A -- ':!.github/workflows/pages.yml'
-          git commit -m "Flatten generated v9.3 into source [flattened-source]"
+          git commit -m "Complete Hafizku source refactor [source-applied]"
           git push origin HEAD:main
