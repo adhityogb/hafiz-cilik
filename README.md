@@ -1,96 +1,74 @@
-# Hafiz Cilik
+# Hafizku
 
-Aplikasi web untuk anak mendengar dan menghafal Juz 30 (surah 78–114). Bisa
-dipasang di layar utama ponsel dan dipakai tanpa internet setelah surahnya
-disimpan.
+> **Nama produk:** Hafizku. Slug repo `hafiz-cilik` dipertahankan agar URL GitHub Pages dan instalasi lama tidak terputus.
 
-## Isi
+Hafizku adalah PWA hafalan Juz 30 untuk anak: dengar ayat, ulangi dengan qari pilihan, pilih target hafalan, dan simpan surah agar tetap bisa diputar tanpa internet.
 
-| Berkas | Guna |
+## Arsitektur
+
+Repo ini **langsung berisi source aplikasi**. Tidak ada framework, bundler, npm, ZIP source, atau rangkaian patch build. GitHub Pages menerbitkan file root apa adanya.
+
+| Berkas | Fungsi |
 | --- | --- |
-| `index.html` | rangka app + sprite ikon SVG |
-| `app.css` | seluruh gaya, tanpa Tailwind CDN |
-| `app.js` | logika pemutar, pengulangan, penyimpanan |
-| `data.js` | data 37 surah + nomor ayat global |
-| `sw.js` | service worker (offline) |
-| `manifest.webmanifest`, `icons/` | supaya bisa dipasang sebagai aplikasi |
+| `index.html` | struktur UI dan sprite SVG |
+| `app.css` | seluruh tampilan |
+| `app.js` | state, player, offline save, instalasi PWA |
+| `data.js` | data Juz 30 + konfigurasi runtime bersama |
+| `sw.js` | service worker offline-first |
+| `manifest.webmanifest` | metadata PWA |
+| `icons/` | ikon PWA yang sudah jadi |
 
-Tidak ada langkah build. Salin folder ini ke hosting statis apa pun.
+Semua aset aplikasi memakai path relatif `./`, sehingga aman di subfolder GitHub Pages.
 
-## Menjalankan
+## Menjalankan lokal
 
-Service worker hanya aktif di `https://` atau `http://localhost`, jadi jangan
-buka lewat `file://`.
+Service worker membutuhkan HTTPS atau localhost:
 
 ```bash
 python3 -m http.server 8000
-# lalu buka http://localhost:8000
+# buka http://localhost:8000
 ```
 
-GitHub Pages: dorong folder ini ke repo, aktifkan Pages, selesai. Semua jalur
-di dalam app relatif (`./`), jadi aman berada di subfolder seperti
-`username.github.io/hafiz-cilik/`.
+Tidak ada langkah build.
 
-## Cara kerja audio
+## Cara kerja audio & offline
 
-URL audio disusun sendiri di perangkat, tanpa memanggil API:
+`data.js` adalah satu-satunya sumber konfigurasi host audio. `app.js` menyusun kandidat URL dari konfigurasi itu dan `sw.js` memuat `data.js` dengan `importScripts('./data.js')`, sehingga player dan service worker tidak bisa tertinggal memakai host berbeda.
 
-```
-https://cdn.islamic.network/quran/audio/128/{qari}/{nomor ayat global}.mp3
-```
+Urutan sumber audio:
 
-Nomor ayat global tiap surah tersimpan di `data.js` (kolom `start`) dan sudah
-diverifikasi lewat tiga titik acuan: total 6236 ayat, ayat pertama An-Naba' =
-5673, dan An-Nas = 6231–6236. Akibatnya daftar ayat langsung muncul walau
-sedang tanpa internet.
+1. EveryAyah untuk qari yang dipilih.
+2. EveryAyah Al-Afasy bila qari pilihan gagal.
+3. The Quran Project mirror.
+4. Quran Foundation Al-Afasy.
 
-Teks Arab, latin, dan artinya diambil dari `api.alquran.cloud` (tiga edisi
-dalam satu permintaan), lalu disimpan supaya pembukaan berikutnya tidak
-memerlukan jaringan. Kalau nomor ayat dari API ternyata berbeda dari data
-lokal, app memakai nomor dari API dan mencatat peringatan di console — jadi
-tidak akan pernah memutar ayat yang salah.
+Tombol **Simpan surah untuk offline** mengambil audio tiap ayat dan memasukkannya ke cache persisten `hafiz-audio-v1`. Service worker membaca cache yang sama sebelum mencoba jaringan. Cache audio sengaja tidak memakai versi aplikasi supaya hafalan yang sudah disimpan tidak ikut terhapus saat aplikasi diperbarui.
 
-Kalau suatu qari mengembalikan 404, ganti qari di **Pengaturan**. Daftar qari
-ada di `RECITERS` dalam `data.js`.
+### Tes manual audio offline (wajib sebelum rilis besar)
 
-## Penyimpanan
+1. Buka Hafizku dengan jaringan aktif.
+2. Pilih satu surah dan tekan **Simpan surah untuk offline** sampai 100%.
+3. Buka DevTools → Network → pilih **Offline** (atau aktifkan mode pesawat di perangkat).
+4. Putar ayat surah yang tadi disimpan.
+5. Audio harus tetap berbunyi.
 
-| Cache | Isi | Kapan dihapus |
-| --- | --- | --- |
-| `hafiz-shell-v1` | html, css, js, ikon | saat `VERSION` di `sw.js` dinaikkan |
-| `hafiz-fonts-v1` | font Google | idem |
-| `hafiz-text-v1` | jawaban API teks ayat | idem |
-| `hafiz-audio-v1` | mp3 yang disimpan pengguna | hanya lewat tombol di Pengaturan |
+## Data Juz 30
 
-Cache audio sengaja tidak diberi nomor versi supaya audio yang sudah diunduh
-anak tidak terhapus setiap app diperbarui.
+Nilai `id`, `n`, dan `start` di `data.js` adalah data terverifikasi dan tidak boleh diubah sembarangan. CI menghitung fingerprint khusus untuk ketiga field itu dan gagal bila ada perubahan yang tidak disengaja.
 
-Bintang, surah yang sudah selesai, dan pilihan pengaturan disimpan di
-`localStorage` lewat pembungkus yang tidak pernah melempar error — di mode
-privat app tetap jalan, hanya tidak mengingat setelah ditutup.
+`loadText()` memakai API Al-Qur'an hanya untuk teks Arab/latin/terjemahan. Bila nomor global dari API berbeda dengan data lokal, aplikasi mencatat peringatan integritas di console; pemetaan audio surah:ayat tidak diubah.
 
-**Setelah mengubah `app.css`/`app.js`, naikkan `VERSION` di `sw.js`.** Tanpa
-itu perangkat yang sudah pernah membuka app akan tetap memakai versi lama.
+## Warna surah
 
-## Yang menentukan di kode
+Field `sky` di `data.js` adalah identitas visual semantik (`dawn`, `sun`, `sky`, `garden`, `dusk`, `night`). Kartu dan halaman detail memakai token yang sama, sehingga warna suatu surah tetap konsisten walaupun filter level berubah.
 
-1. **Satu objek `Audio`**, dibuka pada sentuhan pertama, setelahnya hanya
-   `.src` yang diganti. Ini alasan "Putar semua" tidak diblokir Safari iOS —
-   ayat kedua dan seterusnya dipicu dari `ended`, bukan dari sentuhan.
-2. **Semua perubahan state pemutar lewat `stopAll()`**, sehingga tombol dan
-   kartu ayat tidak pernah menampilkan keadaan yang berbeda dari audionya.
-3. **Ayat berikutnya dipanaskan lebih dulu** (`warm()`) supaya sambungan antar
-   ayat tidak menggantung.
+## Pemasangan ke layar utama
 
-## Catatan font
+- Android/Chromium memakai `beforeinstallprompt` asli browser.
+- iOS Safari menampilkan panduan Bagikan → Tambahkan ke Layar Utama → Tambah.
+- iOS Chrome/Firefox/Edge meminta pengguna membuka Hafizku lewat Safari terlebih dahulu.
+- Tawaran pemasangan tidak muncul ketika aplikasi sudah berjalan dalam mode standalone.
 
-Font diambil dari Google Fonts dan di-cache service worker pada pemakaian
-pertama, jadi buka app sekali dengan internet sebelum dipakai offline. Kalau
-font Arab (`Amiri Quran`) belum terunduh, teks turun ke font Arab bawaan
-perangkat — tetap terbaca, hanya bentuknya berbeda.
+## Deployment
 
-## Ide lanjutan
-
-- Mode "tes hafalan": audio berhenti di tengah ayat, anak melanjutkan.
-- Rentang ulang A–B untuk menghafal potongan surah panjang.
-- Riwayat harian supaya orang tua tahu ayat mana yang paling sering diulang.
+Push ke `main` memicu `.github/workflows/pages.yml`. CI hanya memverifikasi source (`node --check`, integritas data, konsistensi versi/path) lalu mengunggah root repo ke GitHub Pages. Tidak ada transformasi source saat deploy.

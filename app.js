@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Hafiz Cilik — app.js
+   Hafizku — app.js
    Vanilla JS, tanpa framework. Tiga hal yang paling menentukan di sini:
    1. SATU objek Audio yang dibuka pada sentuhan pertama, lalu hanya .src-nya
       yang diganti. Ini yang membuat "Putar semua" tidak diblokir Safari iOS.
@@ -50,7 +50,7 @@ const state = {
   reciter: store.get('reciter', RECITERS[0].id),
   stars: store.get('stars', 0),
   saved: new Set(),    // nomor ayat global yang audionya sudah tersimpan
-  playing: null,       // {idx, rep, target, chain}
+  playing: null,       // {idx, rep, target, chain, sourceIndex}
   timer: null
 };
 
@@ -58,20 +58,30 @@ const state = {
 const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 let audio = null;
 let unlocked = false;
-let audioFallbackActive = false;
 
-const RECITER_FOLDERS = {
-  'ar.husary': 'Husary_128kbps',
-  'ar.alafasy': 'Alafasy_128kbps',
-  'ar.minshawi': 'Minshawy_Murattal_128kbps',
-  'ar.abdulbasitmurattal': 'Abdul_Basit_Murattal_192kbps'
-};
-function reciterFolder(reciter) {
-  return RECITER_FOLDERS[reciter] || RECITER_FOLDERS['ar.alafasy'];
+function everyAyahFolder(reciter) {
+  const folders = AUDIO_CONFIG.everyayah.folders;
+  return folders[reciter] || folders['ar.alafasy'];
 }
-function stableAudioUrl(surahId, ayahNo, reciter = state.reciter) {
-  const folder = reciterFolder(reciter);
-  return `https://everyayah.com/data/${folder}/${String(surahId).padStart(3, '0')}${String(ayahNo).padStart(3, '0')}.mp3`;
+
+function verseCode(surahId, ayahNo) {
+  return String(surahId).padStart(3, '0') + String(ayahNo).padStart(3, '0');
+}
+
+function audioCandidates(surahId, ayahNo, reciter = state.reciter) {
+  const code = verseCode(surahId, ayahNo);
+  const primary = AUDIO_CONFIG.everyayah;
+  const foundation = AUDIO_CONFIG.quranFoundation;
+  const urls = [
+    `https://${primary.host}${primary.basePath}/${everyAyahFolder(reciter)}/${code}.mp3`
+  ];
+  if (reciter !== 'ar.alafasy') {
+    urls.push(`https://${primary.host}${primary.basePath}/${everyAyahFolder('ar.alafasy')}/${code}.mp3`);
+  }
+  const quranProject = AUDIO_CONFIG.quranProject;
+  urls.push(`https://${quranProject.host}${quranProject.basePath}/${surahId}_${ayahNo}.mp3`);
+  urls.push(`https://${foundation.host}${foundation.basePath}/${code}.mp3`);
+  return [...new Set(urls)];
 }
 
 function makeAudio() {
@@ -145,6 +155,10 @@ function renderLevels() {
     <button class="chip" type="button" data-level="${l.key}" aria-pressed="${l.key === state.level}">
       ${esc(l.label)} <small>${esc(l.hint)}</small>
     </button>`).join('');
+  requestAnimationFrame(() => {
+    const active = $('levels').querySelector('[aria-pressed="true"]');
+    if (active) active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
+  });
 }
 
 
@@ -223,6 +237,9 @@ function openSurah(s) {
   state.surah = s;
   state.verses = Array.from({ length: s.n }, (_, i) => ({ no: i + 1, global: s.start + i }));
 
+  const view = $('viewSurah');
+  view.classList.remove('card--dawn', 'card--sun', 'card--sky', 'card--garden', 'card--dusk', 'card--night');
+  view.classList.add('card--' + s.sky);
   $('hero').className = 'hero card--' + s.sky;
   $('heroSym').innerHTML = `<use href="#s-${s.sym}"></use>`;
   $('heroAr').textContent = s.ar;
@@ -256,7 +273,7 @@ function renderSegs() {
   $('segGap').innerHTML = GAPS.map(g => `
     <button class="chip" type="button" data-gap="${g}" aria-pressed="${g === state.gap}">${g === 0 ? 'Tanpa' : g + ' dtk'}</button>`).join('');
   $('segSpeed').innerHTML = SPEEDS.map(v => `
-    <button class="chip" type="button" data-speed="${v}" aria-pressed="${v === state.speed}">${v === 1 ? 'Normal' : v + '×'}</button>`).join('');
+    <button class="chip" type="button" data-speed="${v}" aria-pressed="${v === state.speed}">${v + '×'}</button>`).join('');
   const sum = $('tuneSum');
   if (sum) sum.textContent = `${state.repeat}× · ${state.gap === 0 ? 'tanpa jeda' : state.gap + ' dtk jeda'}`;
 }
@@ -334,10 +351,10 @@ async function loadText(s) {
     const tl = byId['en.transliteration'] || [];
     const id = byId['id.indonesian'] || [];
 
-    // pemeriksaan silang: nomor global dari API harus sama dengan data lokal
+    // Pemeriksaan integritas saja. Audio memakai surah:ayat, dan data lokal
+    // tidak pernah diubah berdasarkan respons API.
     if (ar[0] && ar[0].number !== s.start) {
-      console.warn('Nomor ayat global berbeda; memakai nomor dari API.', ar[0].number, s.start);
-      state.verses.forEach((v, i) => { if (ar[i]) v.global = ar[i].number; });
+      console.warn('Integritas data: nomor global API berbeda dari data lokal.', { api: ar[0].number, lokal: s.start, surah: s.id });
     }
 
     const rows = state.verses.map((v, i) => ({
@@ -406,7 +423,6 @@ function stopAll() {
   state.timer = null;
   if (audio) { audio.pause(); audio.removeAttribute('src'); }
   if (state.playing) { clearPaint(state.playing.idx); state.playing = null; }
-  audioFallbackActive = false;
   updateAllBtn(false);
 }
 
@@ -416,25 +432,26 @@ function playAyah(idx, chain) {
   clearTimeout(state.timer);
   if (state.playing) clearPaint(state.playing.idx);
 
-  state.playing = { idx, rep: 1, target: state.repeat, chain: !!wasChain };
+  state.playing = { idx, rep: 1, target: state.repeat, chain: !!wasChain, sourceIndex: 0 };
   paintPlaying(idx);
   updateAllBtn(!!wasChain);
   start(idx);
   warm(idx + 1);
 }
 
-function start(idx, fallback = false) {
+function start(idx, sourceIndex = 0) {
   const a = makeAudio();
   unlocked = true;
-  audioFallbackActive = fallback;
-  const selectedReciter = fallback ? 'ar.alafasy' : state.reciter;
-  a.src = stableAudioUrl(state.surah.id, state.verses[idx].no, selectedReciter);
+  const cur = state.playing;
+  if (cur && cur.idx === idx) cur.sourceIndex = sourceIndex;
+  const sources = audioCandidates(state.surah.id, state.verses[idx].no);
+  a.src = sources[Math.min(sourceIndex, sources.length - 1)];
   a.playbackRate = state.speed;
-  const p = a.play();
-  if (p && p.catch) p.catch(err => {
-    if (err && err.name === 'NotAllowedError') {
-      const st = statusOf(idx);
-      if (st) st.textContent = 'Ketuk sekali lagi untuk memulai suara';
+  const promise = a.play();
+  if (promise && promise.catch) promise.catch(error => {
+    if (error && error.name === 'NotAllowedError') {
+      const status = statusOf(idx);
+      if (status) status.textContent = 'Ketuk sekali lagi untuk memulai suara';
     } else {
       onAudioError();
     }
@@ -449,7 +466,7 @@ function onEnded() {
   if (cur.rep < cur.target) {
     cur.rep++;
     paintRepeat(cur.idx);
-    state.timer = setTimeout(() => { if (state.playing === cur) start(cur.idx); }, gapMs);
+    state.timer = setTimeout(() => { if (state.playing === cur) start(cur.idx, cur.sourceIndex); }, gapMs);
     return;
   }
 
@@ -473,33 +490,33 @@ function onEnded() {
 
 function onAudioError() {
   const cur = state.playing;
-  const idx = cur ? cur.idx : null;
+  if (!cur) return;
+  const idx = cur.idx;
+  const sources = audioCandidates(state.surah.id, state.verses[idx].no);
+  const next = (cur.sourceIndex || 0) + 1;
 
-  // Keep the selected qari, but transparently fall back to Al-Afasy for this
-  // playback attempt if the selected source is temporarily unavailable.
-  if (cur && idx !== null && state.reciter !== 'ar.alafasy' && !audioFallbackActive && navigator.onLine) {
-    const st = statusOf(idx);
-    if (st) st.textContent = 'Sumber qari ini sedang bermasalah — mencoba Al-Afasy…';
-    start(idx, true);
+  if (next < sources.length) {
+    const status = statusOf(idx);
+    if (status) status.textContent = navigator.onLine
+      ? 'Mencoba sumber suara cadangan…'
+      : 'Mencoba audio tersimpan cadangan…';
+    start(idx, next);
     return;
   }
 
   stopAll();
-  audioFallbackActive = false;
-  if (idx !== null) {
-    const st = statusOf(idx);
-    if (st) st.textContent = navigator.onLine
-      ? 'Suara gagal dimuat — coba lagi atau pilih qari lain'
-      : 'Suara ini belum tersimpan. Sambungkan internet dulu, lalu tekan tombol simpan.';
-  }
+  const status = statusOf(idx);
+  if (status) status.textContent = navigator.onLine
+    ? 'Suara gagal dimuat — coba lagi atau pilih qari lain'
+    : 'Audio ayat ini belum tersimpan. Sambungkan internet lalu simpan surah.';
 }
 
-/* muat awal ayat berikutnya supaya sambungannya mulus */
+/* Hangatkan sumber utama ayat berikutnya agar perpindahan terasa cepat. */
 function warm(idx) {
-  const v = state.verses[idx];
-  if (!v) return;
-  const url = stableAudioUrl(state.surah.id, v.no);
-  fetch(url, { mode: 'cors' }).catch(() => fetch(url, { mode: 'no-cors' }).catch(() => {}));
+  const verse = state.verses[idx];
+  if (!verse) return;
+  const url = audioCandidates(state.surah.id, verse.no)[0];
+  fetch(url, { mode: 'no-cors', cache: 'force-cache' }).catch(() => {});
 }
 
 function toggleAll() {
@@ -526,19 +543,31 @@ async function scanSaved() {
   if (!('caches' in window)) return;
   try {
     const cache = await caches.open(AUDIO_CACHE);
-    const keys = await cache.keys();
-    const selectedFolder = `/data/${reciterFolder(state.reciter)}/`;
-    keys.forEach(req => {
-      if (!req.url.includes(selectedFolder)) return;
-      const m = req.url.match(/\/(\d{3})(\d{3})\.mp3$/);
-      if (!m) return;
-      const surah = SURAHS.find(s => s.id === +m[1]);
-      const ayah = +m[2];
-      if (surah && ayah >= 1 && ayah <= surah.n) state.saved.add(surah.start + ayah - 1);
+    const cachedUrls = new Set((await cache.keys()).map(request => request.url));
+    SURAHS.forEach(surah => {
+      for (let ayah = 1; ayah <= surah.n; ayah++) {
+        const available = audioCandidates(surah.id, ayah).some(url => cachedUrls.has(url));
+        if (available) state.saved.add(surah.start + ayah - 1);
+      }
     });
-  } catch (e) {}
+  } catch (error) {
+    console.warn('Tidak bisa membaca cache audio.', error);
+  }
 }
 
+async function fetchCacheableAudio(url) {
+  try {
+    const response = await fetch(url, { mode: 'cors' });
+    if (response.ok) return response;
+  } catch (error) {
+    // Beberapa mirror tidak mengirim header CORS; audio tetap bisa diputar.
+  }
+  try {
+    const response = await fetch(url, { mode: 'no-cors' });
+    if (response.type === 'opaque') return response;
+  } catch (error) {}
+  return null;
+}
 
 async function saveSurah() {
   const s = state.surah;
@@ -550,18 +579,21 @@ async function saveSurah() {
   const cache = await caches.open(AUDIO_CACHE);
   let done = 0, failed = 0;
   for (const v of state.verses) {
-    const url = stableAudioUrl(state.surah.id, v.no);
-    try {
-      const hit = await cache.match(url);
-      if (!hit) {
-        let res;
-        try { res = await fetch(url, { mode: 'cors' }); }
-        catch (e) { res = await fetch(url, { mode: 'no-cors' }); }
-        if (res && (res.ok || res.type === 'opaque')) await cache.put(url, res.clone());
-        else failed++;
-      }
-      state.saved.add(v.global);
-    } catch (e) { failed++; }
+    const candidates = audioCandidates(s.id, v.no);
+    let stored = false;
+    for (const url of candidates) {
+      try {
+        if (await cache.match(url)) { stored = true; break; }
+        const response = await fetchCacheableAudio(url);
+        if (response) {
+          await cache.put(url, response.clone());
+          stored = true;
+          break;
+        }
+      } catch (error) {}
+    }
+    if (stored) state.saved.add(v.global);
+    else failed++;
     done++;
     $('saveBar').style.width = Math.round(done / state.verses.length * 100) + '%';
   }
@@ -741,28 +773,97 @@ document.addEventListener('click', async e => {
 $('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    if (!$('sheet').classList.contains('hidden')) closeSheet();
+    if (!$('installSheet').classList.contains('hidden')) closeInstallSheet();
+    else if (!$('sheet').classList.contains('hidden')) closeSheet();
     else if (state.playing) stopAll();
   }
 });
 window.addEventListener('offline', () => toast('Tanpa internet — surah yang sudah disimpan tetap bisa diputar'));
 
-['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
-document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
-/* ---------- pasang aplikasi ---------- */
-let installEvent = null;
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  installEvent = e;
-  $('btnInstall').classList.remove('hidden');
+/* ---------- pasang di layar utama ---------- */
+const INSTALL_DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
+let installTrigger = null;
+let installDeclinedThisSession = false;
+
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true ||
+    document.referrer.startsWith('android-app://');
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isIOSSafari() {
+  return isIOS() && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent);
+}
+
+function installDismissedRecently() {
+  const at = +store.get('installDismissedAt', 0);
+  return at && Date.now() - at < INSTALL_DISMISS_MS;
+}
+
+function hideInstallOffer() {
+  $('installBanner').classList.add('hidden');
+}
+
+function refreshInstallOffer() {
+  if (isStandalone() || installDismissedRecently() || installDeclinedThisSession) {
+    hideInstallOffer();
+    return;
+  }
+  const canPrompt = !!window.__deferredInstall;
+  if (canPrompt || isIOS()) $('installBanner').classList.remove('hidden');
+  else hideInstallOffer();
+}
+
+function closeInstallSheet() {
+  $('installSheet').classList.add('hidden');
+  if (installTrigger) installTrigger.focus();
+}
+
+function openInstallSheet(trigger) {
+  installTrigger = trigger;
+  $('installIOSSteps').classList.toggle('hidden', !isIOSSafari());
+  $('installIOSBrowser').classList.toggle('hidden', isIOSSafari());
+  $('installSheet').classList.remove('hidden');
+  $('btnCloseInstallSheet').focus();
+}
+
+async function requestInstall(trigger) {
+  if (isStandalone()) { hideInstallOffer(); return; }
+
+  if (window.__deferredInstall) {
+    const promptEvent = window.__deferredInstall;
+    await promptEvent.prompt();
+    const choice = await promptEvent.userChoice.catch(() => null);
+    window.__deferredInstall = null;
+    if (!choice || choice.outcome !== 'accepted') installDeclinedThisSession = true;
+    hideInstallOffer();
+    return;
+  }
+
+  if (isIOS()) openInstallSheet(trigger);
+}
+
+window.addEventListener('installready', refreshInstallOffer);
+window.addEventListener('appinstalled', () => {
+  window.__deferredInstall = null;
+  store.del('installDismissedAt');
+  hideInstallOffer();
 });
-$('btnInstall').addEventListener('click', async () => {
-  if (!installEvent) return;
-  installEvent.prompt();
-  await installEvent.userChoice;
-  installEvent = null;
-  $('btnInstall').classList.add('hidden');
+
+$('btnInstall').addEventListener('click', event => requestInstall(event.currentTarget));
+$('btnDismissInstall').addEventListener('click', () => {
+  store.set('installDismissedAt', Date.now());
+  hideInstallOffer();
+});
+$('btnCloseInstallSheet').addEventListener('click', closeInstallSheet);
+$('installSheet').addEventListener('click', event => {
+  if (event.target.id === 'installSheet') closeInstallSheet();
 });
 
 /* ---------- mulai ---------- */
@@ -771,7 +872,10 @@ $('btnInstall').addEventListener('click', async () => {
   renderLevels();
   await scanSaved();
   renderGrid();
+  refreshInstallOffer();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('sw.js?v=9.3', { updateViaCache: 'none' }).then(reg => reg.update()).catch(() => {});
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+      .then(registration => registration.update())
+      .catch(() => {});
   }
 })();

@@ -1,4 +1,4 @@
-/* Hafiz Cilik — data Juz 30 (surah 78–114)
+/* Hafizku — data Juz 30 (surah 78–114)
  *
  * "start" = nomor ayat global (1..6236). Dipakai untuk menyusun URL audio
  * tanpa perlu memanggil API sama sekali, jadi daftar ayat langsung muncul
@@ -69,5 +69,33 @@ const RECITERS = [
   { id: "ar.abdulbasitmurattal", name: "Syekh Abdul Basith",note: "murattal klasik" }
 ];
 
-const AUDIO_BASE = "https://cdn.islamic.network/quran/audio/128";
-const audioUrl = (reciter, globalAyah) => `${AUDIO_BASE}/${reciter}/${globalAyah}.mp3`;
+
+/* Konfigurasi runtime tunggal. Service worker memuat file ini juga lewat
+ * importScripts('./data.js'), jadi host audio dan versi cache tidak pernah
+ * didefinisikan ganda. */
+const APP_VERSION = '10.0.0';
+
+const AUDIO_CONFIG = Object.freeze({
+  everyayah: Object.freeze({
+    host: 'everyayah.com',
+    basePath: '/data',
+    folders: Object.freeze({
+      'ar.husary': 'Husary_128kbps',
+      'ar.alafasy': 'Alafasy_128kbps',
+      'ar.minshawi': 'Minshawy_Murattal_128kbps',
+      'ar.abdulbasitmurattal': 'Abdul_Basit_Murattal_192kbps'
+    })
+  }),
+  quranProject: Object.freeze({
+    host: 'the-quran-project.github.io',
+    basePath: '/Quran-Audio/Data/1'
+  }),
+  quranFoundation: Object.freeze({
+    host: 'verses.quran.foundation',
+    basePath: '/Alafasy/mp3'
+  })
+});
+
+const AUDIO_HOSTS = Object.freeze(
+  [...new Set(Object.values(AUDIO_CONFIG).map(source => source.host))]
+);
