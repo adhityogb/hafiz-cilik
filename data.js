@@ -73,7 +73,7 @@ const RECITERS = [
 /* Konfigurasi runtime tunggal. Service worker memuat file ini juga lewat
  * importScripts('./data.js'), jadi host audio dan versi cache tidak pernah
  * didefinisikan ganda. */
-const APP_VERSION = '10.0.0';
+const APP_VERSION = '10.0.1';
 
 const AUDIO_CONFIG = Object.freeze({
   everyayah: Object.freeze({

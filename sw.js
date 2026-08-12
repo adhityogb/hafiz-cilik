@@ -99,3 +99,5 @@ self.addEventListener('fetch', event => {
     event.respondWith(cacheFirst(request, SHELL).catch(() => Response.error()));
   }
 });
+
+// Hafizku 10.0.1 cache refresh

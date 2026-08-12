@@ -64,3 +64,67 @@ svg.ico,.card__sym,.hero__sym,.ayah__cue>svg,.sky__star,.sky__moon{width:22px;he
 @media(max-width:430px){.brand__sub{display:none}.sky{width:94px;height:56px}.bar{grid-template-columns:60px 60px minmax(0,1fr)}.bar .btn{min-height:58px;padding:9px}.hero__meta{white-space:normal}.ayah{grid-template-columns:48px 1fr auto;gap:10px}.ayah__no{width:48px;height:48px}.ayah__ar{font-size:1.65rem}.ayat--numbers .ayah-number{grid-template-columns:56px minmax(0,1fr) 44px;gap:10px}.ayat--numbers .ayah-number .ayah__no{width:54px;height:54px}#pickReciter{grid-template-columns:1fr}.focus-pick{grid-template-columns:1fr}}
 @media(max-width:350px){.grid{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}.card:hover,.btn:hover,.ayah:hover{transform:none}}
+
+/* Hafizku 10.0.1 - colorful ayah buttons + detail spacing */
+#viewSurah {
+  padding-top: 22px;
+}
+#viewSurah > .bar {
+  margin-bottom: 18px;
+}
+
+/* Warna bergilir khusus ayat. Warna kartu surah tetap semantik dari field sky. */
+.ayah-card:nth-of-type(6n+1), .ayah-wrap:nth-of-type(6n+1) { --ayah-bg:#BAE6FD; --ayah-edge:#38BDF8; --ayah-ink:#0C4A6E; }
+.ayah-card:nth-of-type(6n+2), .ayah-wrap:nth-of-type(6n+2) { --ayah-bg:#FBCFE8; --ayah-edge:#F472B6; --ayah-ink:#831843; }
+.ayah-card:nth-of-type(6n+3), .ayah-wrap:nth-of-type(6n+3) { --ayah-bg:#BBF7D0; --ayah-edge:#4ADE80; --ayah-ink:#14532D; }
+.ayah-card:nth-of-type(6n+4), .ayah-wrap:nth-of-type(6n+4) { --ayah-bg:#E9D5FF; --ayah-edge:#C084FC; --ayah-ink:#581C87; }
+.ayah-card:nth-of-type(6n+5), .ayah-wrap:nth-of-type(6n+5) { --ayah-bg:#FEF08A; --ayah-edge:#EAB308; --ayah-ink:#713F12; }
+.ayah-card:nth-of-type(6n+6), .ayah-wrap:nth-of-type(6n+6) { --ayah-bg:#FED7AA; --ayah-edge:#FB923C; --ayah-ink:#7C2D12; }
+
+/* Mode fokus: seluruh tombol ayat berwarna. */
+.ayat--numbers .ayah-number {
+  background: var(--ayah-bg);
+  border-color: var(--ayah-edge);
+  color: var(--ayah-ink);
+  box-shadow: 0 7px 0 rgba(22,50,79,.12), 0 12px 20px rgba(22,50,79,.08);
+}
+.ayat--numbers .ayah-number .ayah__no {
+  background: rgba(255,255,255,.72);
+  border-color: var(--ayah-edge);
+  color: var(--ayah-ink);
+}
+.ayat--numbers .ayah-number__label,
+.ayat--numbers .ayah-number__label small {
+  color: var(--ayah-ink);
+}
+.ayat--numbers .ayah-number__play {
+  background: rgba(255,255,255,.68);
+  color: var(--ayah-ink);
+}
+
+/* Mode teks: kartu ayat juga memakai warna yang sama, tetap kontras dan nyaman dibaca. */
+.ayat--full .ayah {
+  background: var(--ayah-bg);
+  border-color: var(--ayah-edge);
+  color: var(--ayah-ink);
+}
+.ayat--full .ayah__no {
+  background: rgba(255,255,255,.70);
+  border-color: var(--ayah-edge);
+  color: var(--ayah-ink);
+}
+.ayat--full .ayah__latin,
+.ayat--full .ayah__id,
+.ayat--full .ayah__status {
+  color: var(--ayah-ink);
+}
+.ayat--full .ayah__cue {
+  background: rgba(255,255,255,.66);
+  color: var(--ayah-ink);
+  box-shadow: inset 0 0 0 2px var(--ayah-edge);
+}
+
+@media (max-width: 430px) {
+  #viewSurah { padding-top: 20px; }
+  #viewSurah > .bar { margin-bottom: 17px; }
+}
