@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Hafizku — Teman Hafalan Juz 30</title>
+<meta name="description" content="Hafizku membantu anak mendengar, mengulang, dan menghafal Juz 30 dengan fokus.">
+<meta name="theme-color" content="#E0F2FE">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hafizku">
+<link rel="manifest" href="manifest.webmanifest?v=9.3">
+<link rel="icon" href="icons/favicon.svg?v=9.2" type="image/svg+xml">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=9.2">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Nunito:wght@600;700;800&family=Amiri+Quran&display=swap">
+<link rel="stylesheet" href="app.css?v=9.3">
+<meta name="hafizku-build" content="v9.3">
+</head>
+<body>
+
+<!-- ====================== sprite ikon (SVG, bukan emoji) ====================== -->
+<svg id="sprite" width="0" height="0" aria-hidden="true" style="position:absolute" fill="none"
+     stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.2l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.7l6.1-.9z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-star-line" viewBox="0 0 24 24"><path d="M12 3.2l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.7l6.1-.9z"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 15A8.5 8.5 0 0 1 9 3.5 7.5 7.5 0 1 0 20.5 15z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.4c0-.6.7-1 1.2-.7l9.1 6c.5.3.5 1.1 0 1.4l-9.1 6c-.5.3-1.2 0-1.2-.7z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="7" y="6" width="3.6" height="12" rx="1.6" fill="currentColor" stroke="none"/><rect x="13.4" y="6" width="3.6" height="12" rx="1.6" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10.5m0 0l-3.8-3.8M12 14.5l3.8-3.8M5 19h14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.8l4.6 4.7L19 6.8"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6.5 9.5L12 15l5.5-5.5"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.4M12 18.6V21M4.6 7.8l2 1.2M17.4 15l2 1.2M4.6 16.2l2-1.2M17.4 9l2-1.2"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 3.5L20 6.5l-3 3M20 6.5H9a4.5 4.5 0 0 0 0 9M7 20.5l-3-3 3-3M4 17.5h11a4.5 4.5 0 0 0 0-9"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 17a8.5 8.5 0 1 1 16 0"/><path d="M12 17l4.2-4.7"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3.2 2"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20.2 4.3v4.4h-4.4"/></symbol>
+    <symbol id="i-offline" viewBox="0 0 24 24"><path d="M4 5l16 15"/><path d="M8.2 15.4a5.4 5.4 0 0 1 6-1.1M5.2 11.6a10 10 0 0 1 4.6-2.4M2.4 8a14 14 0 0 1 4-2.3"/><circle cx="12" cy="19" r="1.1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-saved" viewBox="0 0 24 24"><path d="M6.5 17.5A3.5 3.5 0 0 1 7 10.6a5.5 5.5 0 0 1 10.5-1.1 3.9 3.9 0 0 1 .6 7.9z"/><path d="M9.6 13.6l2 2 3.6-3.9"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9 7V4.8h6V7M6.5 7l.9 12.2h9.2L17.5 7"/></symbol>
+    <symbol id="i-mosque" viewBox="0 0 24 24"><path d="M12 2.5c1.8 1.8 3 3.2 3 4.8 0 1.4-1.3 2.2-3 2.2S9 8.7 9 7.3c0-1.6 1.2-3 3-4.8z"/><path d="M4 20.5v-7a8 8 0 0 1 16 0v7z"/><path d="M10 20.5v-4a2 2 0 0 1 4 0v4"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M7 4.5h10a1.5 1.5 0 0 1 1.5 1.5v13.4L12 15.7l-6.5 3.7V6A1.5 1.5 0 0 1 7 4.5z"/></symbol>
+    <symbol id="i-book-open" viewBox="0 0 24 24"><path d="M12 7.2c-1.9-1.4-4.6-2-8-1.7v12.2c3.5-.3 6.2.3 8 1.7 1.8-1.4 4.5-2 8-1.7V5.5c-3.4-.3-6.1.3-8 1.7z"/><path d="M12 7.2v12.2"/></symbol>
+
+    <!-- simbol tema surah -->
+    <symbol id="s-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.1"/><path d="M3.4 20a5.6 5.6 0 0 1 11.2 0"/><circle cx="17.4" cy="9" r="2.4"/><path d="M14.8 20a4.6 4.6 0 0 1 6.8-4"/></symbol>
+    <symbol id="s-sunrise" viewBox="0 0 24 24"><path d="M2.5 19h19M6 15.5a6 6 0 0 1 12 0"/><path d="M12 3v3.2M4.6 7.6l2 2M19.4 7.6l-2 2"/></symbol>
+    <symbol id="s-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.4"/><path d="M12 2.6v2.4M12 19v2.4M2.6 12h2.4M19 12h2.4M5.4 5.4l1.7 1.7M16.9 16.9l1.7 1.7M18.6 5.4l-1.7 1.7M7.1 16.9l-1.7 1.7"/></symbol>
+    <symbol id="s-moon" viewBox="0 0 24 24"><path d="M20 14.8A8.4 8.4 0 0 1 9.2 4a7.4 7.4 0 1 0 10.8 10.8z"/><path d="M4.5 6.5l.9.9M6.8 3.6l.6.6"/></symbol>
+    <symbol id="s-stars" viewBox="0 0 24 24"><path d="M9 3l1.5 3.4L14 7l-2.5 2.4.6 3.5L9 11.2l-3.1 1.7.6-3.5L4 7l3.5-.6z"/><path d="M17.5 13.5l.9 2 2.1.3-1.5 1.5.4 2.1-1.9-1-1.9 1 .4-2.1-1.5-1.5 2.1-.3z"/></symbol>
+    <symbol id="s-palm" viewBox="0 0 24 24"><path d="M11.4 21c.4-5.4.9-8.6 1.6-11.4"/><path d="M13 8.6c-2-1.7-4.4-2-6.6-.6M13 8.6c2.4-1.2 4.8-.7 6.4 1.2M13 8.6c-.6-2.4.3-4.5 2.4-5.6M13 8.6c-2.3-.7-4.2 0-5.6 1.9"/></symbol>
+    <symbol id="s-hands" viewBox="0 0 24 24"><path d="M8.4 13.2V6.6a1.6 1.6 0 0 1 3.2 0v4"/><path d="M11.6 10.6V5.2a1.6 1.6 0 0 1 3.2 0v5.4"/><path d="M14.8 10.6V7.4a1.6 1.6 0 0 1 3.2 0v6.8a6 6 0 0 1-6 6h-1.6a4.8 4.8 0 0 1-4.8-4.8v-2.6a1.6 1.6 0 0 1 3.2 0"/></symbol>
+    <symbol id="s-camel" viewBox="0 0 24 24"><path d="M3.4 19.4v-4.2c0-2.6 1.8-4.4 4.2-4.6 1.2-1.9 2.3-1.9 3.4 0 1.2-1.9 2.4-1.9 3.5 0l2 .5c1.4.5 2 1.4 2 2.7"/><path d="M18.5 13.8V7.6c0-1.4-1-2.2-2.4-2.2"/><path d="M6.4 19.4v-3.6M11 19.4v-3.4M15.6 19.4v-3.4"/></symbol>
+    <symbol id="s-elephant" viewBox="0 0 24 24"><path d="M4 18.6v-4.4a6 6 0 0 1 6-6h3.4a5 5 0 0 1 5 5v5.4"/><path d="M13.6 18.6v-3.2c0-2.3 1.5-2.6 1.5-4.4"/><path d="M15.1 11c0 2.6 1.4 3.4 1.4 5.4a1.7 1.7 0 0 1-3.4 0"/><path d="M4 18.6h2.6M4 12.6c-1.4.5-2 1.6-1.7 3.1"/></symbol>
+    <symbol id="s-book" viewBox="0 0 24 24"><path d="M12 7.4C10.2 6 7.6 5.4 4 5.6v12c3.6-.2 6.2.4 8 1.8 1.8-1.4 4.4-2 8-1.8v-12c-3.6-.2-6.2.4-8 1.8z"/><path d="M12 7.4v11.8"/></symbol>
+    <symbol id="s-scale" viewBox="0 0 24 24"><path d="M12 4.2v15.4M6.6 19.6h10.8"/><path d="M4 8.4h16"/><path d="M4 8.4l-2 4.2a2.6 2.6 0 0 0 4 0zM20 8.4l2 4.2a2.6 2.6 0 0 1-4 0z"/></symbol>
+    <symbol id="s-horse" viewBox="0 0 24 24"><path d="M6 20.4v-4.8c0-3.6 2.6-6.4 6-6.4h1.6l3-3.2v3.2c1.6.8 2.4 2.2 2.4 4.2v7"/><path d="M9.6 20.4v-3.4M13.6 9.2L11 5.6"/><circle cx="15.6" cy="12.4" r=".9" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="s-city" viewBox="0 0 24 24"><path d="M2.6 20.4h18.8"/><path d="M5 20.4v-8.8h4.4v8.8M14.6 20.4v-12H19v12"/><path d="M11.8 20.4v-5.6h1.4"/><path d="M16.8 8.4c.9-1 1.5-1.7 1.5-2.5 0-.8-.7-1.6-1.5-2.4"/></symbol>
+    <symbol id="s-quake" viewBox="0 0 24 24"><path d="M2.6 15.6h3.2l2.4-6.4 3 11.2 3-14.4 2.6 9.6h4.6"/></symbol>
+    <symbol id="s-heart" viewBox="0 0 24 24"><path d="M12 20.2S3.6 15.4 3.6 9.6A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8.4 2.6c0 5.8-8.4 10.6-8.4 10.6z"/></symbol>
+    <symbol id="s-cloud" viewBox="0 0 24 24"><path d="M6.6 18.4a4 4 0 0 1 .5-7.9 5.6 5.6 0 0 1 10.7-1.1 4.4 4.4 0 0 1 .6 9z"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+  <!-- ====================== header ====================== -->
+  <header class="top">
+    <div class="brand">
+      <div class="brand__mark" aria-hidden="true"><svg class="ico"><use href="#i-book-open"></use></svg></div>
+      <div>
+        <h1 class="brand__name">Hafizku</h1>
+        <p class="brand__sub">Juz 30 · dengar, ulang, hafal</p>
+      </div>
+    </div>
+
+    <!-- Langit bintang: tiap ayat yang selesai didengar menambah satu bintang -->
+    <div class="sky" id="sky" role="img" aria-label="Langit bintang, 0 bintang terkumpul">
+      <svg class="sky__moon" aria-hidden="true"><use href="#i-moon"></use></svg>
+      <span class="sky__count" id="skyCount">0</span>
+    </div>
+  </header>
+
+  <!-- ====================== layar 1: pilih surah ====================== -->
+  <main id="viewHome">
+    <div class="lede">
+      <h2>Mau dengar surah apa?</h2>
+      <p>Level 1 surahnya paling pendek</p>
+    </div>
+
+    <div class="levels" id="levels" role="group" aria-label="Pilih panjang surah"></div>
+
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <!-- ====================== layar 2: pemutar ====================== -->
+  <main id="viewSurah" class="hidden">
+    <div class="bar">
+      <button class="btn" id="btnBack" type="button" aria-label="Kembali ke daftar surah">
+        <svg class="ico" aria-hidden="true"><use href="#i-back"></use></svg><span class="lbl">Surah lain</span>
+      </button>
+      <span class="bar__spacer"></span>
+      <button class="btn btn--icon" id="btnSave" type="button" title="Simpan untuk dipakai tanpa internet" aria-label="Simpan surah ini untuk dipakai tanpa internet">
+        <svg class="ico" aria-hidden="true"><use href="#i-download"></use></svg>
+      </button>
+      <button class="btn btn--go btn--big" id="btnAll" type="button">
+        <svg class="ico" aria-hidden="true"><use href="#i-play"></use></svg> <span id="btnAllText">Putar semua</span>
+      </button>
+    </div>
+
+    <section class="hero" id="hero">
+      <svg class="hero__sym" id="heroSym" aria-hidden="true"><use href="#s-sun"></use></svg>
+      <div class="hero__text">
+        <h2 id="heroName">An-Nas</h2>
+        <p class="hero__meta" id="heroMeta">6 ayat · Manusia</p>
+      </div>
+      <p class="hero__ar" id="heroAr" dir="rtl">الناس</p>
+      <div class="meter hidden hero__wide" id="saveMeter"><i id="saveBar"></i></div>
+    </section>
+
+    <section class="marker-panel" id="markerPanel" aria-label="Penanda hafalan">
+      <div class="marker-panel__text">
+        <b>Penanda hafalan</b>
+        <span id="markerText">Belum ada penanda untuk surah ini.</span>
+      </div>
+      <button class="btn btn--soft hidden" id="btnClearMarker" type="button">
+        <svg class="ico" aria-hidden="true"><use href="#i-trash"></use></svg> Hapus
+      </button>
+    </section>
+
+    <div class="rows">
+      <button class="row row--sum" id="btnTune" type="button" aria-expanded="false" aria-controls="tune">
+        <svg class="ico" aria-hidden="true"><use href="#i-repeat"></use></svg>
+        <span class="row__label">Cara belajar</span>
+        <span class="row__sum" id="tuneSum">Ulang 3× · jeda 1 dtk</span>
+        <svg class="ico row__chev" aria-hidden="true"><use href="#i-chev"></use></svg>
+      </button>
+
+      <div id="tune" class="hidden">
+        <div class="row">
+          <div class="row__top">
+            <svg class="ico" style="width:20px;height:20px" aria-hidden="true"><use href="#i-repeat"></use></svg>
+            <span class="row__label">Ulang tiap ayat</span>
+          </div>
+          <span class="row__hint">Diulang sampai hafal, baru lanjut ayat berikutnya</span>
+          <div class="seg" id="segRepeat" role="group" aria-label="Jumlah ulangan tiap ayat"></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="row__top">
+            <svg class="ico" style="width:20px;height:20px" aria-hidden="true"><use href="#i-clock"></use></svg>
+            <span class="row__label">Jeda untuk menirukan</span>
+          </div>
+          <span class="row__hint">Waktu diam untuk mengucap ulang</span>
+          <div class="seg" id="segGap" role="group" aria-label="Lama jeda"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ayat" id="ayat"></div>
+  </main>
+
+</div>
+
+<!-- ====================== panel orang tua ====================== -->
+<div class="sheet hidden" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheet__panel">
+    <div class="sheet__head">
+      <svg class="ico" style="width:26px;height:26px" aria-hidden="true"><use href="#i-gear"></use></svg>
+      <h2 id="sheetTitle">Pengaturan</h2>
+      <span class="bar__spacer"></span>
+      <button class="btn" id="btnCloseSheet" type="button">Tutup</button>
+    </div>
+
+    <div class="row">
+      <div class="row__top"><span class="row__label">Suara bacaan</span></div>
+      <div class="pick" id="pickReciter" role="radiogroup" aria-label="Pilih qari"></div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <div class="row__top">
+        <svg class="ico" style="width:20px;height:20px" aria-hidden="true"><use href="#i-gauge"></use></svg>
+        <span class="row__label">Kecepatan baca</span>
+      </div>
+      <div class="seg" id="segSpeed" role="group" aria-label="Kecepatan"></div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <div class="row__top">
+        <span class="row__label">Mode fokus hafalan</span>
+        <button class="switch" id="btnHideText" type="button" role="switch" aria-checked="false"><span></span></button>
+      </div>
+      <span class="row__hint">Sembunyikan teks Arab, latin, dan arti. Daftar ayat menjadi tombol angka saja.</span>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <div class="row__top"><span class="row__label">Target Hafalan</span></div>
+      <span class="row__hint">Pilih surah yang sedang dihafal dari level mana pun.</span>
+      <div class="focus-pick" id="focusPicker"></div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <div class="row__top"><span class="row__label">Tersimpan di perangkat</span></div>
+      <p class="row__hint" id="storageInfo" style="margin:0 0 10px">Menghitung…</p>
+      <div class="seg">
+        <button class="btn" id="btnClearAudio" type="button">
+          <svg class="ico" aria-hidden="true"><use href="#i-trash"></use></svg> Hapus audio tersimpan
+        </button>
+        <button class="btn" id="btnResetStars" type="button">
+          <svg class="ico" aria-hidden="true"><use href="#i-refresh"></use></svg> Mulai bintang dari nol
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====================== dock & toast ====================== -->
+<div class="dock">
+  <button class="btn" id="btnSheet" type="button">
+    <svg class="ico" aria-hidden="true"><use href="#i-gear"></use></svg> Pengaturan
+  </button>
+  <button class="btn hidden" id="btnInstall" type="button">
+    <svg class="ico" aria-hidden="true"><use href="#i-download"></use></svg> Pasang aplikasi
+  </button>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <svg class="ico" aria-hidden="true"><use href="#i-star"></use></svg>
+  <span id="toastText"></span>
+</div>
+
+<script src="data.js?v=9.3"></script>
+<script src="app.js?v=9.3"></script>
+</body>
+</html>
