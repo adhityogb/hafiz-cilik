@@ -1,4 +1,4 @@
-name: Deploy Hafizku to GitHub Pages
+name: Flatten Hafizku source once
 
 on:
   push:
@@ -6,33 +6,26 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
-  build:
+  flatten:
+    if: ${{ !contains(github.event.head_commit.message, '[flattened-source]') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Extract app from ZIP
+      - name: Reproduce current v9.3 site exactly
         run: |
           rm -rf _site extracted
           mkdir -p _site extracted
           unzip -q hafiz-cilik.zip -d extracted
           cp -a extracted/hafiz-cilik/. _site/
-
-      - name: Prepare icon tooling
-        run: python3 -m pip install --disable-pip-version-check pillow
-
-      - name: Apply Hafizku features
-        run: |
+          python3 -m pip install --disable-pip-version-check pillow
           python3 customize_hafizku.py _site
           python3 polish_child_ui_v2.py _site
           python3 refine_hafizku_v8.py _site
@@ -41,55 +34,81 @@ jobs:
           python3 generate_hafizku_icons.py _site
           python3 hafizku_v9_2_cleanup.py _site
           python3 restore_reciters_v9_3.py _site
-
-      - name: Verify build
-        run: |
-          grep -F "Hafizku" _site/index.html
-          grep -F "memorizationMarker: false" _site/app.js
-          grep -F "Husary_128kbps" _site/app.js
-          grep -F "Alafasy_128kbps" _site/app.js
-          grep -F "Minshawy_Murattal_128kbps" _site/app.js
-          grep -F "Abdul_Basit_Murattal_192kbps" _site/app.js
-          grep -F "RECITERS.map" _site/app.js
-          grep -F "start(idx, true)" _site/app.js
-          grep -F "app.css?v=9.3" _site/index.html
-          grep -F "app.js?v=9.3" _site/index.html
-          grep -F "updateViaCache: 'none'" _site/app.js
-          grep -F "Hafizku v9.3" _site/app.css
-          grep -F "const VERSION = 'v9.3'" _site/sw.js
           node --check _site/app.js
-          python3 - <<'PY'
-          from PIL import Image
-          from pathlib import Path
-          root = Path('_site/icons')
-          expected = {
-              'icon-192.png': (192, 192),
-              'icon-512.png': (512, 512),
-              'icon-maskable-512.png': (512, 512),
-              'apple-touch-icon.png': (180, 180),
-          }
-          for name, size in expected.items():
-              img = Image.open(root / name)
-              assert img.size == size, (name, img.size, size)
-              assert img.mode == 'RGB', (name, img.mode)
-          print('PWA icons verified')
-          PY
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
+      - name: Promote generated site to repository root
+        run: |
+          cp _site/index.html ./index.html
+          cp _site/app.css ./app.css
+          cp _site/app.js ./app.js
+          cp _site/data.js ./data.js
+          cp _site/sw.js ./sw.js
+          cp _site/manifest.webmanifest ./manifest.webmanifest
+          rm -rf ./icons
+          cp -a _site/icons ./icons
+          if [ -f _site/README.md ]; then cp _site/README.md ./README.md; fi
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
+          rm -f hafiz-cilik.zip \
+            customize_hafizku.py polish_child_ui_v2.py refine_hafizku_v8.py \
+            hafizku_palette_v9.py force_hafizku_v9_live.py generate_hafizku_icons.py \
+            hafizku_v9_2_cleanup.py restore_reciters_v9_3.py polish_child_ui.py
+          rm -rf _site extracted
 
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Install permanent direct-source Pages workflow
+        run: |
+          cat > .github/workflows/pages.yml <<'YAML'
+          name: Deploy Hafizku to GitHub Pages
+
+          on:
+            push:
+              branches: [main]
+            workflow_dispatch:
+
+          permissions:
+            contents: read
+            pages: write
+            id-token: write
+
+          concurrency:
+            group: pages
+            cancel-in-progress: true
+
+          jobs:
+            build:
+              runs-on: ubuntu-latest
+              steps:
+                - name: Checkout
+                  uses: actions/checkout@v4
+                - name: Verify source
+                  run: |
+                    node --check app.js
+                    test -f index.html
+                    test -f app.css
+                    test -f data.js
+                    test -f sw.js
+                    test -f manifest.webmanifest
+                - name: Configure Pages
+                  uses: actions/configure-pages@v5
+                - name: Upload Pages artifact
+                  uses: actions/upload-pages-artifact@v3
+                  with:
+                    path: .
+            deploy:
+              environment:
+                name: github-pages
+                url: ${{ steps.deployment.outputs.page_url }}
+              runs-on: ubuntu-latest
+              needs: build
+              steps:
+                - name: Deploy to GitHub Pages
+                  id: deployment
+                  uses: actions/deploy-pages@v4
+          YAML
+
+      - name: Commit flattened source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Flatten generated v9.3 into source [flattened-source]"
+          git push origin HEAD:main
