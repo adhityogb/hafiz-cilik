@@ -17,20 +17,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect staged source
+      - name: Detect complete staged source
         id: staged
         run: |
-          if [ -f final-source.tar.gz ]; then
+          count=$(find . -maxdepth 1 -type f -name 'final-source.part-*' | wc -l)
+          if [ "$count" -eq 7 ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Apply staged source
+      - name: Reassemble and apply staged source
         if: steps.staged.outputs.ready == 'true'
         run: |
+          rm -f final-source.tar.gz
+          cat final-source.part-* | base64 -d > final-source.tar.gz
+          echo "f85e7bc833cd0ba7d315726ee37dacda130f33f7daf40c26f42c7545296ff036  final-source.tar.gz" | sha256sum -c -
           tar -xzf final-source.tar.gz
-          rm -f final-source.tar.gz audio-fix.js
+          rm -f final-source.tar.gz final-source.part-* audio-fix.js
           node --check app.js
           node --check data.js
           node --check sw.js
