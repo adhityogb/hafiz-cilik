@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   polish:
+    if: github.event.head_commit.message != 'Polish colorful ayah buttons and detail spacing [ayah-polished]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,80 +26,90 @@ jobs:
 
       - name: Apply visual polish to source
         run: |
+          if ! grep -Fq "Hafizku 10.0.1 - colorful ayah buttons" app.css; then
+            cat >> app.css <<'CSS'
+
+          /* Hafizku 10.0.1 - colorful ayah buttons + detail spacing */
+          #viewSurah {
+            padding-top: 22px;
+          }
+          #viewSurah > .bar {
+            margin-bottom: 18px;
+          }
+
+          /* Warna bergilir khusus ayat. Warna kartu surah tetap semantik dari field sky. */
+          .ayah-card:nth-of-type(6n+1), .ayah-wrap:nth-of-type(6n+1) { --ayah-bg:#BAE6FD; --ayah-edge:#38BDF8; --ayah-ink:#0C4A6E; }
+          .ayah-card:nth-of-type(6n+2), .ayah-wrap:nth-of-type(6n+2) { --ayah-bg:#FBCFE8; --ayah-edge:#F472B6; --ayah-ink:#831843; }
+          .ayah-card:nth-of-type(6n+3), .ayah-wrap:nth-of-type(6n+3) { --ayah-bg:#BBF7D0; --ayah-edge:#4ADE80; --ayah-ink:#14532D; }
+          .ayah-card:nth-of-type(6n+4), .ayah-wrap:nth-of-type(6n+4) { --ayah-bg:#E9D5FF; --ayah-edge:#C084FC; --ayah-ink:#581C87; }
+          .ayah-card:nth-of-type(6n+5), .ayah-wrap:nth-of-type(6n+5) { --ayah-bg:#FEF08A; --ayah-edge:#EAB308; --ayah-ink:#713F12; }
+          .ayah-card:nth-of-type(6n+6), .ayah-wrap:nth-of-type(6n+6) { --ayah-bg:#FED7AA; --ayah-edge:#FB923C; --ayah-ink:#7C2D12; }
+
+          /* Mode fokus: seluruh tombol ayat berwarna. */
+          .ayat--numbers .ayah-number {
+            background: var(--ayah-bg);
+            border-color: var(--ayah-edge);
+            color: var(--ayah-ink);
+            box-shadow: 0 7px 0 rgba(22,50,79,.12), 0 12px 20px rgba(22,50,79,.08);
+          }
+          .ayat--numbers .ayah-number .ayah__no {
+            background: rgba(255,255,255,.72);
+            border-color: var(--ayah-edge);
+            color: var(--ayah-ink);
+          }
+          .ayat--numbers .ayah-number__label,
+          .ayat--numbers .ayah-number__label small {
+            color: var(--ayah-ink);
+          }
+          .ayat--numbers .ayah-number__play {
+            background: rgba(255,255,255,.68);
+            color: var(--ayah-ink);
+          }
+
+          /* Mode teks: kartu ayat juga memakai warna yang sama, tetap kontras dan nyaman dibaca. */
+          .ayat--full .ayah {
+            background: var(--ayah-bg);
+            border-color: var(--ayah-edge);
+            color: var(--ayah-ink);
+          }
+          .ayat--full .ayah__no {
+            background: rgba(255,255,255,.70);
+            border-color: var(--ayah-edge);
+            color: var(--ayah-ink);
+          }
+          .ayat--full .ayah__latin,
+          .ayat--full .ayah__id,
+          .ayat--full .ayah__status {
+            color: var(--ayah-ink);
+          }
+          .ayat--full .ayah__cue {
+            background: rgba(255,255,255,.66);
+            color: var(--ayah-ink);
+            box-shadow: inset 0 0 0 2px var(--ayah-edge);
+          }
+
+          @media (max-width: 430px) {
+            #viewSurah { padding-top: 20px; }
+            #viewSurah > .bar { margin-bottom: 17px; }
+          }
+          CSS
+          fi
+
           python3 - <<'PY'
           from pathlib import Path
-
-          css_path = Path('app.css')
-          css = css_path.read_text()
-          marker = '/* Hafizku 10.0.1 — colorful ayah buttons + detail spacing */'
-          if marker not in css:
-              css += r'''
-
-/* Hafizku 10.0.1 — colorful ayah buttons + detail spacing */
-/* Beri napas antara kartu header dan action bar saat surah dibuka. */
-#viewSurah > .bar {
-  margin-top: 20px;
-  margin-bottom: 18px;
-}
-
-/* Warna ayat bergilir. Ini hanya untuk identitas ayat; warna kartu surah tetap
-   semantik berdasarkan field sky dan tidak bergantung pada posisi. */
-.ayah-card:nth-of-type(6n+1), .ayah-wrap:nth-of-type(6n+1) { --ayah-bg:#BAE6FD; --ayah-edge:#38BDF8; --ayah-ink:#0C4A6E; }
-.ayah-card:nth-of-type(6n+2), .ayah-wrap:nth-of-type(6n+2) { --ayah-bg:#FBCFE8; --ayah-edge:#F472B6; --ayah-ink:#831843; }
-.ayah-card:nth-of-type(6n+3), .ayah-wrap:nth-of-type(6n+3) { --ayah-bg:#BBF7D0; --ayah-edge:#4ADE80; --ayah-ink:#14532D; }
-.ayah-card:nth-of-type(6n+4), .ayah-wrap:nth-of-type(6n+4) { --ayah-bg:#E9D5FF; --ayah-edge:#C084FC; --ayah-ink:#581C87; }
-.ayah-card:nth-of-type(6n+5), .ayah-wrap:nth-of-type(6n+5) { --ayah-bg:#FEF08A; --ayah-edge:#EAB308; --ayah-ink:#713F12; }
-.ayah-card:nth-of-type(6n+6), .ayah-wrap:nth-of-type(6n+6) { --ayah-bg:#FED7AA; --ayah-edge:#FB923C; --ayah-ink:#7C2D12; }
-
-/* Mode fokus: seluruh tombol ayat mendapat warna yang jelas. */
-.ayat--numbers .ayah-number {
-  background: var(--ayah-bg);
-  border-color: var(--ayah-edge);
-  color: var(--ayah-ink);
-  box-shadow: 0 7px 0 color-mix(in srgb, var(--ayah-edge) 32%, transparent),
-              0 12px 20px rgba(22,50,79,.08);
-}
-.ayat--numbers .ayah-number .ayah__no {
-  background: rgba(255,255,255,.72);
-  border-color: var(--ayah-edge);
-  color: var(--ayah-ink);
-  box-shadow: inset 0 2px 0 rgba(255,255,255,.72);
-}
-.ayat--numbers .ayah-number__label,
-.ayat--numbers .ayah-number__label small {
-  color: var(--ayah-ink);
-}
-.ayat--numbers .ayah-number__play {
-  background: rgba(255,255,255,.66);
-  color: var(--ayah-ink);
-}
-
-/* Mode teks: kartu tetap putih agar Arab/latin/arti nyaman dibaca, tetapi
-   nomor dan tombol play memakai warna ayat yang sama. */
-.ayat--full .ayah__no {
-  background: var(--ayah-bg);
-  border-color: var(--ayah-edge);
-  color: var(--ayah-ink);
-}
-.ayat--full .ayah__cue {
-  background: var(--ayah-bg);
-  color: var(--ayah-ink);
-  box-shadow: inset 0 0 0 2px var(--ayah-edge);
-}
-
-@media (max-width: 430px) {
-  #viewSurah > .bar { margin-top: 18px; margin-bottom: 17px; }
-}
-'''
-          css_path.write_text(css)
-
-          data_path = Path('data.js')
-          data = data_path.read_text()
-          if "const APP_VERSION = '10.0.0';" in data:
-              data = data.replace("const APP_VERSION = '10.0.0';", "const APP_VERSION = '10.0.1';", 1)
-          elif "const APP_VERSION = '10.0.1';" not in data:
+          path = Path('data.js')
+          text = path.read_text()
+          if "const APP_VERSION = '10.0.0';" in text:
+              text = text.replace("const APP_VERSION = '10.0.0';", "const APP_VERSION = '10.0.1';", 1)
+          elif "const APP_VERSION = '10.0.1';" not in text:
               raise SystemExit('APP_VERSION yang diharapkan tidak ditemukan')
-          data_path.write_text(data)
+          path.write_text(text)
+
+          sw = Path('sw.js')
+          sw_text = sw.read_text()
+          marker = '// Hafizku 10.0.1 cache refresh'
+          if marker not in sw_text:
+              sw.write_text(sw_text.rstrip() + '\n\n' + marker + '\n')
           PY
 
       - name: Verify source
@@ -106,9 +117,9 @@ jobs:
           node --check app.js
           node --check data.js
           node --check sw.js
-          grep -F "Hafizku 10.0.1" app.css
+          grep -F "Hafizku 10.0.1 - colorful ayah buttons" app.css
           grep -F "const APP_VERSION = '10.0.1';" data.js
-          grep -F "#viewSurah > .bar" app.css
+          grep -F "#viewSurah {" app.css
           grep -F ".ayah-card:nth-of-type(6n+6)" app.css
           ! grep -Eq '\.card:nth-(child|of-type)' app.css
 
@@ -116,8 +127,8 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add app.css data.js
-          git commit -m "Polish colorful ayah buttons and detail spacing"
+          git add app.css data.js sw.js
+          git commit -m "Polish colorful ayah buttons and detail spacing [ayah-polished]"
           git push origin HEAD:main
 
       - name: Configure Pages
