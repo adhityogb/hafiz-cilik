@@ -1,4 +1,4 @@
-name: Apply final Hafizku source once
+name: Deploy Hafizku to GitHub Pages
 
 on:
   push:
@@ -6,44 +6,79 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  apply:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Detect complete staged source
-        id: staged
+      - name: Verify source
         run: |
-          count=$(find . -maxdepth 1 -type f -name 'final-v2.part-*' | wc -l)
-          if [ "$count" -eq 14 ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Reassemble and apply staged source
-        if: steps.staged.outputs.ready == 'true'
-        run: |
-          rm -f final-v2.tar.gz
-          cat final-v2.part-* | base64 -d > final-v2.tar.gz
-          echo "f85e7bc833cd0ba7d315726ee37dacda130f33f7daf40c26f42c7545296ff036  final-v2.tar.gz" | sha256sum -c -
-          tar -xzf final-v2.tar.gz
-          rm -f final-v2.tar.gz final-v2.part-* final-source.tar.gz final-source.part-* audio-fix.js
           node --check app.js
           node --check data.js
           node --check sw.js
+          test -f index.html
+          test -f app.css
+          test -f data.js
+          test -f sw.js
+          test -f manifest.webmanifest
+          test -f icons/icon-192.png
+          test -f icons/icon-512.png
+          test -f icons/icon-maskable-512.png
+          test -f icons/apple-touch-icon.png
+          test ! -f hafiz-cilik.zip
+          test ! -f audio-fix.js
+          test -z "$(find . -maxdepth 1 -name '*.py' -print -quit)"
+          ! grep -Eq '\?v=' index.html manifest.webmanifest sw.js
+          ! grep -Eq 'maximum-scale|user-scalable' index.html
+          ! grep -Eq ':nth-child' app.css
+          grep -F "AUDIO_HOSTS.includes(url.hostname)" sw.js
+          grep -F "./icons/icon-maskable-512.png" sw.js manifest.webmanifest
+          grep -F "./icons/apple-touch-icon.png" sw.js index.html
+          grep -F "const VERSION = APP_VERSION;" sw.js
+          grep -F "importScripts('./data.js');" sw.js
+          node <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const data = fs.readFileSync('data.js','utf8');
+          if (!/const APP_VERSION = '[^']+';/.test(data)) throw new Error('APP_VERSION tidak ditemukan');
+          const rows = [...data.matchAll(/\{\s*id:\s*(\d+),.*?start:\s*(\d+),\s*n:\s*(\d+)/g)]
+            .map(m => `${m[1]}:${m[2]}:${m[3]}`).join('\n');
+          const hash = crypto.createHash('sha256').update(rows).digest('hex');
+          const expected = '4daa2d4a5f3861cd2f56195da3302c7ca8bf252b1c7c804c82cfb0ea656ba752';
+          if (hash !== expected) throw new Error(`id/start/n berubah: ${hash}`);
+          const app = fs.readFileSync('app.js','utf8');
+          const sw = fs.readFileSync('sw.js','utf8');
+          if (/everyayah\.com|verses\.quran\.foundation|the-quran-project\.github\.io/.test(app + sw)) {
+            throw new Error('Host audio harus hanya didefinisikan di data.js');
+          }
+          console.log('Source verification OK');
+          NODE
 
-      - name: Commit final source
-        if: steps.staged.outputs.ready == 'true'
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A -- ':!.github/workflows/pages.yml'
-          git commit -m "Complete Hafizku source refactor [source-applied]"
-          git push origin HEAD:main
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
