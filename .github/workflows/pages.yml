@@ -1,4 +1,4 @@
-name: Deploy Hafizku to GitHub Pages
+name: Apply audio reliability refactor once
 
 on:
   push:
@@ -6,79 +6,605 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
+  contents: write
 
 jobs:
-  build:
+  refactor:
+    if: github.event.head_commit.message != 'Refactor mobile audio reliability [audio-v10.1]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Verify source
+      - name: Refactor audio layer
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f'Pattern tidak ditemukan: {label}')
+              if text.count(old) != 1:
+                  raise SystemExit(f'Pattern tidak unik: {label} ({text.count(old)})')
+              return text.replace(old, new, 1)
+
+          # data.js: satu sumber versi + nama cache audio.
+          p = Path('data.js')
+          data = p.read_text()
+          data = replace_once(data,
+              "const APP_VERSION = '10.0.2';",
+              "const APP_VERSION = '10.1.0';\nconst AUDIO_CACHE_NAME = 'hafiz-audio-v2';",
+              'APP_VERSION 10.0.2')
+          p.write_text(data)
+
+          # app.js: hilangkan silent-unlock/no-cors warmup, migrasikan cache, dan
+          # hanya simpan full CORS response 200 yang dapat dilayani sebagai Range.
+          p = Path('app.js')
+          app = p.read_text()
+          app = replace_once(app,
+              "const AUDIO_CACHE = 'hafiz-audio-v1';",
+              "const AUDIO_CACHE = AUDIO_CACHE_NAME;\nconst LEGACY_AUDIO_CACHES = ['hafiz-audio-v1'];",
+              'AUDIO_CACHE')
+
+          old_audio = '''/* ---------- audio: satu objek, dibuka sekali ---------- */
+          const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+          let audio = null;
+          let unlocked = false;
+
+          function everyAyahFolder(reciter) {'''.replace('          ', '')
+          new_audio = '''/* ---------- audio: satu elemen, diputar langsung dari gesture pengguna ---------- */
+          let audio = null;
+          let playbackGeneration = 0;
+          let activeAudioUrl = '';
+
+          function everyAyahFolder(reciter) {'''.replace('          ', '')
+          app = replace_once(app, old_audio, new_audio, 'audio header')
+
+          old_make = '''function makeAudio() {
+            if (audio) return audio;
+            audio = new Audio();
+            audio.preload = 'auto';
+            audio.addEventListener('ended', onEnded);
+            audio.addEventListener('error', onAudioError);
+            return audio;
+          }
+
+          function unlock() {
+            if (unlocked) return;
+            unlocked = true;
+            const a = makeAudio();
+            a.src = SILENCE;
+            const p = a.play();
+            if (p && p.catch) p.catch(() => { /* akan dibuka lagi oleh ketukan berikutnya */ });
+          }
+          ['pointerdown', 'keydown'].forEach(ev =>
+            window.addEventListener(ev, unlock, { once: true, passive: true }));'''.replace('          ', '')
+          new_make = '''function makeAudio() {
+            if (audio) return audio;
+            audio = new Audio();
+            audio.preload = 'auto';
+            audio.addEventListener('ended', onEnded);
+            audio.addEventListener('error', onAudioError);
+            audio.addEventListener('stalled', () => audioDiagnostics('stalled'));
+            audio.addEventListener('abort', () => audioDiagnostics('abort'));
+            return audio;
+          }
+
+          function audioDiagnostics(reason, error) {
+            const mediaError = audio && audio.error;
+            console.warn('[Hafizku audio]', reason, {
+              error: error ? { name: error.name, message: error.message } : null,
+              mediaError: mediaError ? { code: mediaError.code, message: mediaError.message || '' } : null,
+              networkState: audio ? audio.networkState : null,
+              readyState: audio ? audio.readyState : null,
+              currentSrc: audio ? audio.currentSrc : '',
+              expectedSrc: activeAudioUrl,
+              online: navigator.onLine,
+              standalone: window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+            });
+          }
+
+          function disposeAudio() {
+            if (!audio) return;
+            try { audio.pause(); } catch (error) {}
+            audio.removeEventListener('ended', onEnded);
+            audio.removeEventListener('error', onAudioError);
+            audio = null;
+            activeAudioUrl = '';
+          }'''.replace('          ', '')
+          app = replace_once(app, old_make, new_make, 'makeAudio/unlock')
+
+          old_stop = '''function stopAll() {
+            clearTimeout(state.timer);
+            state.timer = null;
+            if (audio) { audio.pause(); audio.removeAttribute('src'); }
+            if (state.playing) { clearPaint(state.playing.idx); state.playing = null; }
+            updateAllBtn(false);
+          }'''.replace('          ', '')
+          new_stop = '''function stopAll() {
+            clearTimeout(state.timer);
+            state.timer = null;
+            playbackGeneration++;
+            if (audio) {
+              try { audio.pause(); } catch (error) {}
+              try { if (Number.isFinite(audio.duration)) audio.currentTime = 0; } catch (error) {}
+            }
+            if (state.playing) { clearPaint(state.playing.idx); state.playing = null; }
+            updateAllBtn(false);
+          }'''.replace('          ', '')
+          app = replace_once(app, old_stop, new_stop, 'stopAll')
+
+          old_play = '''  start(idx);
+            warm(idx + 1);
+          }'''.replace('          ', '')
+          new_play = '''  start(idx);
+          }'''.replace('          ', '')
+          app = replace_once(app, old_play, new_play, 'warm call')
+
+          old_start = '''function start(idx, sourceIndex = 0) {
+            const a = makeAudio();
+            unlocked = true;
+            const cur = state.playing;
+            if (cur && cur.idx === idx) cur.sourceIndex = sourceIndex;
+            const sources = audioCandidates(state.surah.id, state.verses[idx].no);
+            a.src = sources[Math.min(sourceIndex, sources.length - 1)];
+            a.playbackRate = state.speed;
+            const promise = a.play();
+            if (promise && promise.catch) promise.catch(error => {
+              if (error && error.name === 'NotAllowedError') {
+                const status = statusOf(idx);
+                if (status) status.textContent = 'Ketuk sekali lagi untuk memulai suara';
+              } else {
+                onAudioError();
+              }
+            });
+          }'''.replace('          ', '')
+          new_start = '''function start(idx, sourceIndex = 0) {
+            const a = makeAudio();
+            const cur = state.playing;
+            if (!cur || cur.idx !== idx || !state.surah || !state.verses[idx]) return;
+
+            const sources = audioCandidates(state.surah.id, state.verses[idx].no);
+            const safeIndex = Math.min(sourceIndex, sources.length - 1);
+            const source = sources[safeIndex];
+            cur.sourceIndex = safeIndex;
+            activeAudioUrl = source;
+            const generation = ++playbackGeneration;
+
+            if (a.src !== source) a.src = source;
+            else {
+              try { a.currentTime = 0; } catch (error) {}
+            }
+            a.playbackRate = state.speed;
+
+            const promise = a.play();
+            if (promise && promise.catch) promise.catch(error => {
+              if (generation !== playbackGeneration || !state.playing || state.playing.idx !== idx) return;
+              audioDiagnostics('play() ditolak', error);
+              if (error && error.name === 'NotAllowedError') {
+                clearPaint(idx);
+                state.playing = null;
+                updateAllBtn(false);
+                const status = statusOf(idx);
+                if (status) status.textContent = 'Ketuk ayat sekali lagi untuk memulai suara';
+              } else if (error && error.name !== 'AbortError') {
+                onAudioError(error);
+              }
+            });
+          }'''.replace('          ', '')
+          app = replace_once(app, old_start, new_start, 'start')
+
+          old_error = '''function onAudioError() {
+            const cur = state.playing;
+            if (!cur) return;
+            const idx = cur.idx;
+            const sources = audioCandidates(state.surah.id, state.verses[idx].no);
+            const next = (cur.sourceIndex || 0) + 1;
+
+            if (next < sources.length) {
+              const status = statusOf(idx);
+              if (status) status.textContent = navigator.onLine
+                ? 'Mencoba sumber suara cadangan…'
+                : 'Mencoba audio tersimpan cadangan…';
+              start(idx, next);
+              return;
+            }
+
+            stopAll();
+            const status = statusOf(idx);
+            if (status) status.textContent = navigator.onLine
+              ? 'Suara gagal dimuat — coba lagi atau pilih qari lain'
+              : 'Audio ayat ini belum tersimpan. Sambungkan internet lalu simpan surah.';
+          }
+
+          /* Hangatkan sumber utama ayat berikutnya agar perpindahan terasa cepat. */
+          function warm(idx) {
+            const verse = state.verses[idx];
+            if (!verse) return;
+            const url = audioCandidates(state.surah.id, verse.no)[0];
+            fetch(url, { mode: 'no-cors', cache: 'force-cache' }).catch(() => {});
+          }'''.replace('          ', '')
+          new_error = '''function onAudioError(error) {
+            const cur = state.playing;
+            if (!cur || !state.surah || !state.verses[cur.idx]) return;
+            audioDiagnostics('media gagal', error);
+            const idx = cur.idx;
+            const sources = audioCandidates(state.surah.id, state.verses[idx].no);
+            const next = (cur.sourceIndex || 0) + 1;
+
+            if (next < sources.length) {
+              const status = statusOf(idx);
+              if (status) status.textContent = navigator.onLine
+                ? 'Mencoba sumber suara cadangan…'
+                : 'Mencoba audio tersimpan cadangan…';
+              start(idx, next);
+              return;
+            }
+
+            stopAll();
+            const status = statusOf(idx);
+            if (status) status.textContent = navigator.onLine
+              ? 'Suara belum bisa diputar — coba lagi atau pilih qari lain'
+              : 'Audio ayat ini belum tersimpan. Sambungkan internet lalu simpan surah.';
+          }'''.replace('          ', '')
+          app = replace_once(app, old_error, new_error, 'onAudioError/warm')
+
+          old_offline = '''/* ---------- simpan audio untuk dipakai tanpa internet ---------- */
+          async function scanSaved() {
+            state.saved = new Set();
+            if (!('caches' in window)) return;
+            try {
+              const cache = await caches.open(AUDIO_CACHE);
+              const cachedUrls = new Set((await cache.keys()).map(request => request.url));
+              SURAHS.forEach(surah => {
+                for (let ayah = 1; ayah <= surah.n; ayah++) {
+                  const available = audioCandidates(surah.id, ayah).some(url => cachedUrls.has(url));
+                  if (available) state.saved.add(surah.start + ayah - 1);
+                }
+              });
+            } catch (error) {
+              console.warn('Tidak bisa membaca cache audio.', error);
+            }
+          }
+
+          async function fetchCacheableAudio(url) {
+            try {
+              const response = await fetch(url, { mode: 'cors' });
+              if (response.ok) return response;
+            } catch (error) {
+              // Beberapa mirror tidak mengirim header CORS; audio tetap bisa diputar.
+            }
+            try {
+              const response = await fetch(url, { mode: 'no-cors' });
+              if (response.type === 'opaque') return response;
+            } catch (error) {}
+            return null;
+          }
+
+          async function saveSurah() {
+            const s = state.surah;
+            if (!('caches' in window)) { toast('Perangkat ini belum mendukung penyimpanan offline'); return; }
+            const btn = $('btnSave');
+            btn.disabled = true;
+            $('saveMeter').classList.remove('hidden');
+
+            const cache = await caches.open(AUDIO_CACHE);
+            let done = 0, failed = 0;
+            for (const v of state.verses) {
+              const candidates = audioCandidates(s.id, v.no);
+              let stored = false;
+              for (const url of candidates) {
+                try {
+                  if (await cache.match(url)) { stored = true; break; }
+                  const response = await fetchCacheableAudio(url);
+                  if (response) {
+                    await cache.put(url, response.clone());
+                    stored = true;
+                    break;
+                  }
+                } catch (error) {}
+              }
+              if (stored) state.saved.add(v.global);
+              else failed++;
+              done++;
+              $('saveBar').style.width = Math.round(done / state.verses.length * 100) + '%';
+            }
+
+            btn.disabled = false;
+            setTimeout(() => { $('saveMeter').classList.add('hidden'); $('saveBar').style.width = '0'; }, 700);
+            updateSaveBtn();
+            toast(failed ? `${state.verses.length - failed} dari ${state.verses.length} ayat tersimpan`
+                        : `Surah ${s.name} siap dipakai tanpa internet`);
+            storageInfo();
+          }'''.replace('          ', '')
+          new_offline = '''/* ---------- simpan audio untuk dipakai tanpa internet ---------- */
+          function isCacheableAudioResponse(response) {
+            return !!response && response.status === 200 && response.type !== 'opaque';
+          }
+
+          async function migrateLegacyAudioCaches() {
+            if (!('caches' in window)) return;
+            await Promise.all(LEGACY_AUDIO_CACHES.map(name => caches.delete(name).catch(() => false)));
+          }
+
+          async function scanSaved() {
+            state.saved = new Set();
+            if (!('caches' in window)) return;
+            try {
+              const cache = await caches.open(AUDIO_CACHE);
+              const cachedUrls = new Set();
+              for (const request of await cache.keys()) {
+                const response = await cache.match(request);
+                if (isCacheableAudioResponse(response)) cachedUrls.add(request.url);
+                else await cache.delete(request);
+              }
+              SURAHS.forEach(surah => {
+                for (let ayah = 1; ayah <= surah.n; ayah++) {
+                  const available = audioCandidates(surah.id, ayah).some(url => cachedUrls.has(url));
+                  if (available) state.saved.add(surah.start + ayah - 1);
+                }
+              });
+            } catch (error) {
+              console.warn('Tidak bisa membaca cache audio.', error);
+            }
+          }
+
+          async function fetchCacheableAudio(url) {
+            try {
+              const response = await fetch(url, { mode: 'cors', cache: 'no-store', redirect: 'follow' });
+              return isCacheableAudioResponse(response) ? response : null;
+            } catch (error) {
+              return null;
+            }
+          }
+
+          async function saveSurah() {
+            const s = state.surah;
+            if (!('caches' in window)) { toast('Perangkat ini belum mendukung penyimpanan offline'); return; }
+            const btn = $('btnSave');
+            btn.disabled = true;
+            $('saveMeter').classList.remove('hidden');
+
+            const cache = await caches.open(AUDIO_CACHE);
+            let done = 0, failed = 0, fallbackUsed = 0;
+            for (const v of state.verses) {
+              const candidates = audioCandidates(s.id, v.no);
+              let stored = false;
+              for (let sourceIndex = 0; sourceIndex < candidates.length; sourceIndex++) {
+                const url = candidates[sourceIndex];
+                try {
+                  const existing = await cache.match(url);
+                  if (isCacheableAudioResponse(existing)) {
+                    stored = true;
+                    if (sourceIndex > 0) fallbackUsed++;
+                    break;
+                  }
+                  if (existing) await cache.delete(url);
+                  const response = await fetchCacheableAudio(url);
+                  if (response) {
+                    await cache.put(url, response.clone());
+                    stored = true;
+                    if (sourceIndex > 0) fallbackUsed++;
+                    break;
+                  }
+                } catch (error) {}
+              }
+              if (stored) state.saved.add(v.global);
+              else failed++;
+              done++;
+              $('saveBar').style.width = Math.round(done / state.verses.length * 100) + '%';
+            }
+
+            btn.disabled = false;
+            setTimeout(() => { $('saveMeter').classList.add('hidden'); $('saveBar').style.width = '0'; }, 700);
+            updateSaveBtn();
+            if (failed) {
+              toast(`${state.verses.length - failed} dari ${state.verses.length} ayat tersimpan`);
+            } else if (fallbackUsed) {
+              toast(`Surah ${s.name} siap offline · ${fallbackUsed} ayat memakai sumber cadangan`);
+            } else {
+              toast(`Surah ${s.name} siap dipakai tanpa internet`);
+            }
+            storageInfo();
+          }'''.replace('          ', '')
+          app = replace_once(app, old_offline, new_offline, 'offline cache block')
+
+          old_events = "window.addEventListener('offline', () => toast('Tanpa internet — surah yang sudah disimpan tetap bisa diputar'));"
+          new_events = """window.addEventListener('offline', () => toast('Tanpa internet — surah yang sudah disimpan tetap bisa diputar'));
+
+          function suspendAudioSession() {
+            if (state.playing) stopAll();
+            disposeAudio();
+          }
+          window.addEventListener('pagehide', suspendAudioSession);
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') suspendAudioSession();
+          });""".replace('          ', '')
+          app = replace_once(app, old_events, new_events, 'audio lifecycle')
+
+          old_init = '''  renderSky();
+            renderLevels();
+            await scanSaved();'''.replace('          ', '')
+          new_init = '''  renderSky();
+            renderLevels();
+            await migrateLegacyAudioCaches();
+            await scanSaved();'''.replace('          ', '')
+          app = replace_once(app, old_init, new_init, 'init migration')
+          p.write_text(app)
+
+          # sw.js: range-safe cache; jangan pernah runtime-cache response media parsial/opaque.
+          Path('sw.js').write_text(r'''/* Hafizku — service worker: shell, teks, font, dan audio offline. */
+          importScripts('./data.js');
+
+          const VERSION = APP_VERSION;
+          const SHELL = 'hafiz-shell-' + VERSION;
+          const FONTS = 'hafiz-fonts-' + VERSION;
+          const TEXT = 'hafiz-text-' + VERSION;
+          const AUDIO = AUDIO_CACHE_NAME;
+          const LEGACY_AUDIO = ['hafiz-audio-v1'];
+
+          const SHELL_FILES = [
+            './', './index.html', './app.css', './app.js', './data.js', './manifest.webmanifest',
+            './icons/favicon.svg', './icons/apple-touch-icon.png', './icons/icon-192.png',
+            './icons/icon-512.png', './icons/icon-maskable-512.png'
+          ];
+
+          self.addEventListener('install', event => {
+            event.waitUntil(caches.open(SHELL).then(cache => cache.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
+          });
+
+          self.addEventListener('activate', event => {
+            event.waitUntil((async () => {
+              const keep = new Set([SHELL, FONTS, TEXT, AUDIO]);
+              const keys = await caches.keys();
+              await Promise.all(keys.map(key => {
+                if (LEGACY_AUDIO.includes(key)) return caches.delete(key);
+                return key.startsWith('hafiz-') && !keep.has(key) ? caches.delete(key) : null;
+              }));
+              await self.clients.claim();
+            })());
+          });
+
+          async function cacheFirst(request, cacheName) {
+            const cache = await caches.open(cacheName);
+            const hit = await cache.match(request, { ignoreVary: true });
+            if (hit) return hit;
+            const response = await fetch(request);
+            if (response && (response.ok || response.type === 'opaque')) await cache.put(request.url, response.clone());
+            return response;
+          }
+
+          async function staleWhileRevalidate(request, cacheName) {
+            const cache = await caches.open(cacheName);
+            const hit = await cache.match(request, { ignoreVary: true });
+            const fresh = fetch(request).then(async response => {
+              if (response && response.ok) await cache.put(request, response.clone());
+              return response;
+            }).catch(() => null);
+            return hit || await fresh || new Response(JSON.stringify({ status:'offline' }), { status:503, headers:{'Content-Type':'application/json'} });
+          }
+
+          async function rangeFromCached(request, response) {
+            const range = request.headers.get('range');
+            if (!range) return response;
+            if (!response || response.type === 'opaque' || response.status !== 200) throw new Error('cached audio is not a readable full response');
+
+            const body = await response.arrayBuffer();
+            const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+            if (!match) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${body.byteLength}` } });
+
+            let start;
+            let end;
+            if (match[1] === '') {
+              const suffixLength = Number(match[2]);
+              if (!Number.isFinite(suffixLength) || suffixLength <= 0) return new Response(null, { status: 416 });
+              start = Math.max(0, body.byteLength - suffixLength);
+              end = body.byteLength - 1;
+            } else {
+              start = Number(match[1]);
+              end = match[2] === '' ? body.byteLength - 1 : Math.min(Number(match[2]), body.byteLength - 1);
+            }
+
+            if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || start >= body.byteLength || start > end) {
+              return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${body.byteLength}` } });
+            }
+
+            const headers = new Headers(response.headers);
+            headers.set('Accept-Ranges', 'bytes');
+            headers.set('Content-Range', `bytes ${start}-${end}/${body.byteLength}`);
+            headers.set('Content-Length', String(end - start + 1));
+            return new Response(body.slice(start, end + 1), { status: 206, statusText: 'Partial Content', headers });
+          }
+
+          async function audioCacheFirst(request) {
+            const cache = await caches.open(AUDIO);
+            const hit = await cache.match(request.url, { ignoreVary: true });
+            if (hit) {
+              if (hit.type === 'opaque' || hit.status !== 200) {
+                await cache.delete(request.url);
+              } else {
+                return rangeFromCached(request, hit);
+              }
+            }
+
+            // Network media tidak dimasukkan ke cache saat streaming. Browser dapat
+            // meminta 206 Partial Content; hanya tombol Simpan yang menyimpan full 200.
+            return fetch(request);
+          }
+
+          self.addEventListener('fetch', event => {
+            const request = event.request;
+            if (request.method !== 'GET') return;
+            const url = new URL(request.url);
+
+            if (AUDIO_HOSTS.includes(url.hostname)) {
+              event.respondWith(audioCacheFirst(request).catch(() => Response.error()));
+              return;
+            }
+            if (url.hostname === 'api.alquran.cloud') {
+              event.respondWith(staleWhileRevalidate(request, TEXT));
+              return;
+            }
+            if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+              event.respondWith(cacheFirst(request, FONTS).catch(() => new Response('', {status:504})));
+              return;
+            }
+            if (request.mode === 'navigate') {
+              event.respondWith(fetch(request).catch(() => caches.match('./index.html')));
+              return;
+            }
+            if (url.origin === self.location.origin) {
+              event.respondWith(cacheFirst(request, SHELL).catch(() => Response.error()));
+            }
+          });
+          '''.replace('          ', ''))
+
+          # README: dokumentasikan cache v2 dan strategi Range/CORS.
+          p = Path('README.md')
+          readme = p.read_text()
+          old = '''Tombol **Simpan surah untuk offline** mengambil audio tiap ayat dan memasukkannya ke cache persisten `hafiz-audio-v1`. Service worker membaca cache yang sama sebelum mencoba jaringan. Cache audio sengaja tidak memakai versi aplikasi supaya hafalan yang sudah disimpan tidak ikut terhapus saat aplikasi diperbarui.'''
+          new = '''Tombol **Simpan surah untuk offline** mengambil **file penuh HTTP 200 yang dapat dibaca lewat CORS** dan memasukkannya ke cache `hafiz-audio-v2`. Respons opaque/no-cors dan respons media parsial tidak pernah dianggap sebagai file offline yang valid. Jika sumber qari utama tidak dapat disimpan dengan aman, aplikasi mencoba sumber cadangan dan memberi tahu pengguna.
+
+Service worker hanya menyajikan cache audio yang berupa full response 200. Jika elemen `<audio>` meminta `Range`, service worker membentuk respons `206 Partial Content` dari file penuh tersebut. Audio yang diputar online tidak di-cache ketika sedang streaming. Cache lama `hafiz-audio-v1` dihapus saat migrasi karena dapat berisi respons opaque yang tidak aman untuk Range.'''
+          readme = replace_once(readme, old, new, 'README audio cache')
+          p.write_text(readme)
+          PY
+
+      - name: Verify refactor
         run: |
           node --check app.js
           node --check data.js
           node --check sw.js
-          test -f index.html
-          test -f app.css
-          test -f data.js
-          test -f sw.js
-          test -f manifest.webmanifest
-          test -f icons/icon-192.png
-          test -f icons/icon-512.png
-          test -f icons/icon-maskable-512.png
-          test -f icons/apple-touch-icon.png
-          test ! -f hafiz-cilik.zip
-          test ! -f audio-fix.js
-          test -z "$(find . -maxdepth 1 -name '*.py' -print -quit)"
-          ! grep -Eq '\?v=' index.html manifest.webmanifest sw.js
-          ! grep -Eq 'maximum-scale|user-scalable' index.html
-          ! grep -Eq ':nth-child' app.css
-          grep -F "AUDIO_HOSTS.includes(url.hostname)" sw.js
-          grep -F "./icons/icon-maskable-512.png" sw.js manifest.webmanifest
-          grep -F "./icons/apple-touch-icon.png" sw.js index.html
-          grep -F "const VERSION = APP_VERSION;" sw.js
-          grep -F "importScripts('./data.js');" sw.js
+          grep -F "const APP_VERSION = '10.1.0';" data.js
+          grep -F "const AUDIO_CACHE_NAME = 'hafiz-audio-v2';" data.js
+          grep -F "const AUDIO_CACHE = AUDIO_CACHE_NAME;" app.js
+          grep -F "const AUDIO = AUDIO_CACHE_NAME;" sw.js
+          grep -F "status: 206" sw.js
+          grep -F "response.status === 200 && response.type !== 'opaque'" app.js
+          grep -F "hit.type === 'opaque' || hit.status !== 200" sw.js
+          grep -F "await migrateLegacyAudioCaches();" app.js
+          ! grep -F "const SILENCE" app.js
+          ! grep -F "function warm(" app.js
+          ! grep -F "mode: 'no-cors'" app.js
+          ! grep -F "audio.removeAttribute('src')" app.js
           node <<'NODE'
           const fs = require('fs');
           const crypto = require('crypto');
           const data = fs.readFileSync('data.js','utf8');
-          if (!/const APP_VERSION = '[^']+';/.test(data)) throw new Error('APP_VERSION tidak ditemukan');
           const rows = [...data.matchAll(/\{\s*id:\s*(\d+),.*?start:\s*(\d+),\s*n:\s*(\d+)/g)]
             .map(m => `${m[1]}:${m[2]}:${m[3]}`).join('\n');
           const hash = crypto.createHash('sha256').update(rows).digest('hex');
           const expected = '4daa2d4a5f3861cd2f56195da3302c7ca8bf252b1c7c804c82cfb0ea656ba752';
           if (hash !== expected) throw new Error(`id/start/n berubah: ${hash}`);
-          const app = fs.readFileSync('app.js','utf8');
-          const sw = fs.readFileSync('sw.js','utf8');
-          if (/everyayah\.com|verses\.quran\.foundation|the-quran-project\.github\.io/.test(app + sw)) {
-            throw new Error('Host audio harus hanya didefinisikan di data.js');
-          }
-          console.log('Source verification OK');
+          console.log('Audio refactor verification OK');
           NODE
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Commit refactored source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app.js data.js sw.js README.md
+          git commit -m "Refactor mobile audio reliability [audio-v10.1]"
+          git push origin HEAD:main
