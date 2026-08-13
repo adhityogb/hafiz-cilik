@@ -1,4 +1,4 @@
-name: Apply audio reliability refactor once
+name: Deploy Hafizku to GitHub Pages
 
 on:
   push:
@@ -6,56 +6,148 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  refactor:
-    if: github.event.head_commit.message != 'Refactor mobile audio reliability [audio-v10.1]'
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Apply guarded refactor
-        env:
-          AUDIO_REFACTOR_GZ_B64: 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
-        run: |
-          python3 - <<'PY'
-          import base64, gzip, os
-          exec(gzip.decompress(base64.b64decode(os.environ['AUDIO_REFACTOR_GZ_B64'])))
-          PY
-
-      - name: Verify source
+      - name: Verify JavaScript
         run: |
           node --check app.js
           node --check data.js
           node --check sw.js
-          grep -F "const APP_VERSION = '10.1.0';" data.js
-          grep -F "const AUDIO_CACHE_NAME = 'hafiz-audio-v2';" data.js
-          grep -F "const AUDIO_CACHE = AUDIO_CACHE_NAME;" app.js
-          grep -F "const AUDIO = AUDIO_CACHE_NAME;" sw.js
-          grep -F "status:206" sw.js
-          grep -F "response.status === 200" app.js
-          grep -F "hit.type === 'opaque' || hit.status !== 200" sw.js
-          grep -F "await migrateLegacyAudioCaches();" app.js
-          ! grep -F "const SILENCE" app.js
-          ! grep -F "function warm(" app.js
-          ! grep -F "mode: 'no-cors'" app.js
-          ! grep -F "audio.removeAttribute('src')" app.js
+
+      - name: Verify source integrity
+        run: |
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+
+          required = ['index.html','app.css','app.js','data.js','sw.js','manifest.webmanifest']
+          for path in required:
+              assert Path(path).is_file(), f'missing {path}'
+
+          data = Path('data.js').read_text()
+          app = Path('app.js').read_text()
+          sw = Path('sw.js').read_text()
+          index = Path('index.html').read_text()
+          manifest = json.loads(Path('manifest.webmanifest').read_text())
+
+          assert "const APP_VERSION = '10.1.0';" in data
+          assert "const AUDIO_CACHE_NAME = 'hafiz-audio-v2';" in data
+          assert "const AUDIO_CACHE = AUDIO_CACHE_NAME;" in app
+          assert "const AUDIO = AUDIO_CACHE_NAME;" in sw
+          assert "importScripts('./data.js')" in sw
+          assert 'AUDIO_HOSTS.includes(url.hostname)' in sw
+
+          # Regressions that caused silent playback on mobile must not return.
+          assert 'const SILENCE' not in app
+          assert 'function warm(' not in app
+          assert "mode: 'no-cors'" not in app
+          assert "removeAttribute('src')" not in app
+          assert "response.status === 200" in app and "response.type !== 'opaque'" in app
+          assert "hit.type === 'opaque' || hit.status !== 200" in sw
+          assert 'status:206' in sw and "Accept-Ranges" in sw and "Content-Range" in sw
+          assert "hafiz-audio-v1" in app and "hafiz-audio-v1" in sw  # migration only
+          assert "await migrateLegacyAudioCaches();" in app
+
+          # data.js id/start/n are protected and must remain byte-for-byte equivalent numerically.
+          rows = re.findall(r'id:\s*(\d+).*?start:\s*(\d+),\s*n:\s*(\d+)', data)
+          expected = [
+            ('114','6231','6'),('113','6226','5'),('112','6222','4'),('111','6217','5'),('110','6214','3'),
+            ('109','6208','6'),('108','6205','3'),('107','6198','7'),('106','6194','4'),('105','6189','5'),
+            ('104','6180','9'),('103','6177','3'),('102','6169','8'),('101','6158','11'),('100','6147','11'),
+            ('99','6139','8'),('98','6131','8'),('97','6126','5'),('96','6107','19'),('95','6099','8'),
+            ('94','6091','8'),('93','6080','11'),('92','6059','21'),('91','6044','15'),('90','6024','20'),
+            ('89','5994','30'),('88','5968','26'),('87','5949','19'),('86','5932','17'),('85','5910','22'),
+            ('84','5885','25'),('83','5849','36'),('82','5830','19'),('81','5801','29'),('80','5759','42'),
+            ('79','5713','46'),('78','5673','40')
+          ]
+          assert rows == expected, 'data.js id/start/n changed'
+
+          assert './app.css' in index and './app.js' in index and './data.js' in index
+          assert manifest['name'].startswith('Hafizku')
+          assert manifest['short_name'] == 'Hafizku'
+          assert manifest['start_url'] == './' and manifest['scope'] == './'
+          assert manifest['display'] == 'standalone'
+          sizes = {icon['sizes'] for icon in manifest['icons']}
+          assert '192x192' in sizes and '512x512' in sizes
+
+          dead = [
+            'hafiz-cilik.zip','audio-fix.js','customize_hafizku.py','polish_child_ui.py','polish_child_ui_v2.py',
+            'refine_hafizku_v8.py','hafizku_palette_v9.py','force_hafizku_v9_live.py','hafizku_v9_2_cleanup.py',
+            'restore_reciters_v9_3.py','generate_hafizku_icons.py','tools/refactor_audio.py','tools/audio_refactor_1.py'
+          ]
+          for path in dead:
+              assert not Path(path).exists(), f'temporary/dead file returned: {path}'
+
+          print('Source integrity OK')
+          PY
+
+      - name: Test cached audio Range responses
+        run: |
           node <<'NODE'
-          const fs=require('fs'),crypto=require('crypto');
-          const data=fs.readFileSync('data.js','utf8');
-          const rows=[...data.matchAll(/\{\s*id:\s*(\d+),.*?start:\s*(\d+),\s*n:\s*(\d+)/g)].map(m=>`${m[1]}:${m[2]}:${m[3]}`).join('\n');
-          const hash=crypto.createHash('sha256').update(rows).digest('hex');
-          if(hash!=='4daa2d4a5f3861cd2f56195da3302c7ca8bf252b1c7c804c82cfb0ea656ba752') throw new Error(`data id/start/n berubah: ${hash}`);
+          const fs = require('fs');
+          const vm = require('vm');
+          const source = fs.readFileSync('sw.js', 'utf8').replace("importScripts('./data.js');", '');
+          const context = {
+            APP_VERSION: '10.1.0',
+            AUDIO_CACHE_NAME: 'hafiz-audio-v2',
+            AUDIO_HOSTS: [],
+            self: { addEventListener() {}, clients: { claim: async () => {} }, location: { origin: 'https://example.test' } },
+            caches: {}, fetch: async () => { throw new Error('network not expected'); },
+            Request, Response, Headers, URL, console
+          };
+          vm.createContext(context);
+          vm.runInContext(source, context);
+
+          (async () => {
+            const full = new Response(new Uint8Array([0,1,2,3,4,5,6,7,8,9]), {
+              status: 200,
+              headers: { 'Content-Type': 'audio/mpeg' }
+            });
+            const request = new Request('https://audio.test/verse.mp3', { headers: { Range: 'bytes=2-5' } });
+            const partial = await context.rangeFromCached(request, full);
+            if (partial.status !== 206) throw new Error(`expected 206, got ${partial.status}`);
+            if (partial.headers.get('Content-Range') !== 'bytes 2-5/10') throw new Error('bad Content-Range');
+            const bytes = [...new Uint8Array(await partial.arrayBuffer())];
+            if (bytes.join(',') !== '2,3,4,5') throw new Error(`bad range bytes ${bytes}`);
+
+            const suffix = await context.rangeFromCached(
+              new Request('https://audio.test/verse.mp3', { headers: { Range: 'bytes=-3' } }),
+              new Response(new Uint8Array([0,1,2,3,4,5,6,7,8,9]), { status: 200 })
+            );
+            const suffixBytes = [...new Uint8Array(await suffix.arrayBuffer())];
+            if (suffix.status !== 206 || suffixBytes.join(',') !== '7,8,9') throw new Error('suffix Range failed');
+            console.log('Range cache tests OK');
+          })().catch(error => { console.error(error); process.exit(1); });
           NODE
 
-      - name: Commit source
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add app.js data.js sw.js README.md
-          git commit -m "Refactor mobile audio reliability [audio-v10.1]"
-          git push origin HEAD:main
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
