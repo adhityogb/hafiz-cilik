@@ -10,7 +10,8 @@
    ========================================================================== */
 'use strict';
 
-const AUDIO_CACHE = 'hafiz-audio-v1';
+const AUDIO_CACHE = AUDIO_CACHE_NAME;
+const LEGACY_AUDIO_CACHES = ['hafiz-audio-v1'];
 const REPEATS = [1, 3, 5, 10];
 const GAPS = [0, 1, 2, 4];
 const SPEEDS = [0.75, 0.9, 1, 1.15];
@@ -54,10 +55,10 @@ const state = {
   timer: null
 };
 
-/* ---------- audio: satu objek, dibuka sekali ---------- */
-const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+/* ---------- audio: satu elemen, diputar langsung dari gesture pengguna ---------- */
 let audio = null;
-let unlocked = false;
+let playbackGeneration = 0;
+let activeAudioUrl = '';
 
 function everyAyahFolder(reciter) {
   const folders = AUDIO_CONFIG.everyayah.folders;
@@ -90,19 +91,32 @@ function makeAudio() {
   audio.preload = 'auto';
   audio.addEventListener('ended', onEnded);
   audio.addEventListener('error', onAudioError);
+  audio.addEventListener('stalled', () => audioDiagnostics('stalled'));
   return audio;
 }
 
-function unlock() {
-  if (unlocked) return;
-  unlocked = true;
-  const a = makeAudio();
-  a.src = SILENCE;
-  const p = a.play();
-  if (p && p.catch) p.catch(() => { /* akan dibuka lagi oleh ketukan berikutnya */ });
+function audioDiagnostics(reason, error) {
+  const mediaError = audio && audio.error;
+  console.warn('[Hafizku audio]', reason, {
+    error: error ? { name: error.name, message: error.message } : null,
+    mediaError: mediaError ? { code: mediaError.code, message: mediaError.message || '' } : null,
+    networkState: audio ? audio.networkState : null,
+    readyState: audio ? audio.readyState : null,
+    currentSrc: audio ? audio.currentSrc : '',
+    expectedSrc: activeAudioUrl,
+    online: navigator.onLine,
+    standalone: window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+  });
 }
-['pointerdown', 'keydown'].forEach(ev =>
-  window.addEventListener(ev, unlock, { once: true, passive: true }));
+
+function disposeAudio() {
+  if (!audio) return;
+  try { audio.pause(); } catch (error) {}
+  audio.removeEventListener('ended', onEnded);
+  audio.removeEventListener('error', onAudioError);
+  audio = null;
+  activeAudioUrl = '';
+}
 
 /* ---------- utilitas ---------- */
 function icon(id, cls) {
@@ -421,7 +435,11 @@ function clearPaint(i) {
 function stopAll() {
   clearTimeout(state.timer);
   state.timer = null;
-  if (audio) { audio.pause(); audio.removeAttribute('src'); }
+  playbackGeneration++;
+  if (audio) {
+    try { audio.pause(); } catch (error) {}
+    try { if (Number.isFinite(audio.duration)) audio.currentTime = 0; } catch (error) {}
+  }
   if (state.playing) { clearPaint(state.playing.idx); state.playing = null; }
   updateAllBtn(false);
 }
@@ -436,24 +454,33 @@ function playAyah(idx, chain) {
   paintPlaying(idx);
   updateAllBtn(!!wasChain);
   start(idx);
-  warm(idx + 1);
 }
 
 function start(idx, sourceIndex = 0) {
   const a = makeAudio();
-  unlocked = true;
   const cur = state.playing;
-  if (cur && cur.idx === idx) cur.sourceIndex = sourceIndex;
+  if (!cur || cur.idx !== idx || !state.surah || !state.verses[idx]) return;
   const sources = audioCandidates(state.surah.id, state.verses[idx].no);
-  a.src = sources[Math.min(sourceIndex, sources.length - 1)];
+  const safeIndex = Math.min(sourceIndex, sources.length - 1);
+  const source = sources[safeIndex];
+  cur.sourceIndex = safeIndex;
+  activeAudioUrl = source;
+  const generation = ++playbackGeneration;
+  if (a.src !== source) a.src = source;
+  else { try { a.currentTime = 0; } catch (error) {} }
   a.playbackRate = state.speed;
   const promise = a.play();
   if (promise && promise.catch) promise.catch(error => {
+    if (generation !== playbackGeneration || !state.playing || state.playing.idx !== idx) return;
+    audioDiagnostics('play() ditolak', error);
     if (error && error.name === 'NotAllowedError') {
+      clearPaint(idx);
+      state.playing = null;
+      updateAllBtn(false);
       const status = statusOf(idx);
-      if (status) status.textContent = 'Ketuk sekali lagi untuk memulai suara';
-    } else {
-      onAudioError();
+      if (status) status.textContent = 'Ketuk ayat sekali lagi untuk memulai suara';
+    } else if (error && error.name !== 'AbortError') {
+      onAudioError(error);
     }
   });
 }
@@ -488,35 +515,22 @@ function onEnded() {
   }
 }
 
-function onAudioError() {
+function onAudioError(error) {
   const cur = state.playing;
-  if (!cur) return;
+  if (!cur || !state.surah || !state.verses[cur.idx]) return;
+  audioDiagnostics('media gagal', error);
   const idx = cur.idx;
   const sources = audioCandidates(state.surah.id, state.verses[idx].no);
   const next = (cur.sourceIndex || 0) + 1;
-
   if (next < sources.length) {
     const status = statusOf(idx);
-    if (status) status.textContent = navigator.onLine
-      ? 'Mencoba sumber suara cadangan…'
-      : 'Mencoba audio tersimpan cadangan…';
+    if (status) status.textContent = navigator.onLine ? 'Mencoba sumber suara cadangan…' : 'Mencoba audio tersimpan cadangan…';
     start(idx, next);
     return;
   }
-
   stopAll();
   const status = statusOf(idx);
-  if (status) status.textContent = navigator.onLine
-    ? 'Suara gagal dimuat — coba lagi atau pilih qari lain'
-    : 'Audio ayat ini belum tersimpan. Sambungkan internet lalu simpan surah.';
-}
-
-/* Hangatkan sumber utama ayat berikutnya agar perpindahan terasa cepat. */
-function warm(idx) {
-  const verse = state.verses[idx];
-  if (!verse) return;
-  const url = audioCandidates(state.surah.id, verse.no)[0];
-  fetch(url, { mode: 'no-cors', cache: 'force-cache' }).catch(() => {});
+  if (status) status.textContent = navigator.onLine ? 'Suara belum bisa diputar — coba lagi atau pilih qari lain' : 'Audio ayat ini belum tersimpan. Sambungkan internet lalu simpan surah.';
 }
 
 function toggleAll() {
@@ -538,35 +552,40 @@ function markHafal(id) {
 }
 
 /* ---------- simpan audio untuk dipakai tanpa internet ---------- */
+function isCacheableAudioResponse(response) {
+  return !!response && response.status === 200 && response.type !== 'opaque';
+}
+
+async function migrateLegacyAudioCaches() {
+  if (!('caches' in window)) return;
+  await Promise.all(LEGACY_AUDIO_CACHES.map(name => caches.delete(name).catch(() => false)));
+}
+
 async function scanSaved() {
   state.saved = new Set();
   if (!('caches' in window)) return;
   try {
     const cache = await caches.open(AUDIO_CACHE);
-    const cachedUrls = new Set((await cache.keys()).map(request => request.url));
+    const cachedUrls = new Set();
+    for (const request of await cache.keys()) {
+      const response = await cache.match(request);
+      if (isCacheableAudioResponse(response)) cachedUrls.add(request.url);
+      else await cache.delete(request);
+    }
     SURAHS.forEach(surah => {
       for (let ayah = 1; ayah <= surah.n; ayah++) {
         const available = audioCandidates(surah.id, ayah).some(url => cachedUrls.has(url));
         if (available) state.saved.add(surah.start + ayah - 1);
       }
     });
-  } catch (error) {
-    console.warn('Tidak bisa membaca cache audio.', error);
-  }
+  } catch (error) { console.warn('Tidak bisa membaca cache audio.', error); }
 }
 
 async function fetchCacheableAudio(url) {
   try {
-    const response = await fetch(url, { mode: 'cors' });
-    if (response.ok) return response;
-  } catch (error) {
-    // Beberapa mirror tidak mengirim header CORS; audio tetap bisa diputar.
-  }
-  try {
-    const response = await fetch(url, { mode: 'no-cors' });
-    if (response.type === 'opaque') return response;
-  } catch (error) {}
-  return null;
+    const response = await fetch(url, { mode: 'cors', cache: 'no-store', redirect: 'follow' });
+    return isCacheableAudioResponse(response) ? response : null;
+  } catch (error) { return null; }
 }
 
 async function saveSurah() {
@@ -575,34 +594,31 @@ async function saveSurah() {
   const btn = $('btnSave');
   btn.disabled = true;
   $('saveMeter').classList.remove('hidden');
-
   const cache = await caches.open(AUDIO_CACHE);
-  let done = 0, failed = 0;
+  let done = 0, failed = 0, fallbackUsed = 0;
   for (const v of state.verses) {
     const candidates = audioCandidates(s.id, v.no);
     let stored = false;
-    for (const url of candidates) {
+    for (let sourceIndex = 0; sourceIndex < candidates.length; sourceIndex++) {
+      const url = candidates[sourceIndex];
       try {
-        if (await cache.match(url)) { stored = true; break; }
+        const existing = await cache.match(url);
+        if (isCacheableAudioResponse(existing)) { stored = true; if (sourceIndex > 0) fallbackUsed++; break; }
+        if (existing) await cache.delete(url);
         const response = await fetchCacheableAudio(url);
-        if (response) {
-          await cache.put(url, response.clone());
-          stored = true;
-          break;
-        }
+        if (response) { await cache.put(url, response.clone()); stored = true; if (sourceIndex > 0) fallbackUsed++; break; }
       } catch (error) {}
     }
-    if (stored) state.saved.add(v.global);
-    else failed++;
+    if (stored) state.saved.add(v.global); else failed++;
     done++;
     $('saveBar').style.width = Math.round(done / state.verses.length * 100) + '%';
   }
-
   btn.disabled = false;
   setTimeout(() => { $('saveMeter').classList.add('hidden'); $('saveBar').style.width = '0'; }, 700);
   updateSaveBtn();
-  toast(failed ? `${state.verses.length - failed} dari ${state.verses.length} ayat tersimpan`
-              : `Surah ${s.name} siap dipakai tanpa internet`);
+  if (failed) toast(`${state.verses.length - failed} dari ${state.verses.length} ayat tersimpan`);
+  else if (fallbackUsed) toast(`Surah ${s.name} siap offline · ${fallbackUsed} ayat memakai sumber cadangan`);
+  else toast(`Surah ${s.name} siap dipakai tanpa internet`);
   storageInfo();
 }
 
@@ -779,6 +795,14 @@ document.addEventListener('keydown', e => {
   }
 });
 window.addEventListener('offline', () => toast('Tanpa internet — surah yang sudah disimpan tetap bisa diputar'));
+function suspendAudioSession() {
+  if (state.playing) stopAll();
+  disposeAudio();
+}
+window.addEventListener('pagehide', suspendAudioSession);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') suspendAudioSession();
+});
 
 
 /* ---------- pasang di layar utama ---------- */
@@ -870,6 +894,7 @@ $('installSheet').addEventListener('click', event => {
 (async function init() {
   renderSky();
   renderLevels();
+  await migrateLegacyAudioCaches();
   await scanSaved();
   renderGrid();
   refreshInstallOffer();

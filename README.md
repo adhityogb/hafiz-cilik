@@ -42,7 +42,9 @@ Urutan sumber audio:
 3. The Quran Project mirror.
 4. Quran Foundation Al-Afasy.
 
-Tombol **Simpan surah untuk offline** mengambil audio tiap ayat dan memasukkannya ke cache persisten `hafiz-audio-v1`. Service worker membaca cache yang sama sebelum mencoba jaringan. Cache audio sengaja tidak memakai versi aplikasi supaya hafalan yang sudah disimpan tidak ikut terhapus saat aplikasi diperbarui.
+Tombol **Simpan surah untuk offline** mengambil **file penuh HTTP 200 yang dapat dibaca lewat CORS** dan memasukkannya ke cache `hafiz-audio-v2`. Respons opaque/no-cors dan respons media parsial tidak pernah dianggap sebagai file offline yang valid. Jika sumber qari utama tidak dapat disimpan dengan aman, aplikasi mencoba sumber cadangan dan memberi tahu pengguna.
+
+Service worker hanya menyajikan cache audio yang berupa full response 200. Jika elemen `<audio>` meminta `Range`, service worker membentuk respons `206 Partial Content` dari file penuh tersebut. Audio yang diputar online tidak di-cache ketika sedang streaming. Cache lama `hafiz-audio-v1` dihapus saat migrasi karena dapat berisi respons opaque yang tidak aman untuk Range.
 
 ### Tes manual audio offline (wajib sebelum rilis besar)
 
