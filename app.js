@@ -806,9 +806,7 @@ document.addEventListener('visibilitychange', () => {
 
 
 /* ---------- pasang di layar utama ---------- */
-const INSTALL_DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 let installTrigger = null;
-let installDeclinedThisSession = false;
 
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches ||
@@ -825,23 +823,20 @@ function isIOSSafari() {
   return isIOS() && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent);
 }
 
-function installDismissedRecently() {
-  const at = +store.get('installDismissedAt', 0);
-  return at && Date.now() - at < INSTALL_DISMISS_MS;
-}
-
 function hideInstallOffer() {
   $('installBanner').classList.add('hidden');
 }
 
+function showInstallOffer() {
+  $('installBanner').classList.remove('hidden');
+}
+
 function refreshInstallOffer() {
-  if (isStandalone() || installDismissedRecently() || installDeclinedThisSession) {
+  if (isStandalone()) {
     hideInstallOffer();
     return;
   }
-  const canPrompt = !!window.__deferredInstall;
-  if (canPrompt || isIOS()) $('installBanner').classList.remove('hidden');
-  else hideInstallOffer();
+  showInstallOffer();
 }
 
 function closeInstallSheet() {
@@ -865,8 +860,11 @@ async function requestInstall(trigger) {
     await promptEvent.prompt();
     const choice = await promptEvent.userChoice.catch(() => null);
     window.__deferredInstall = null;
-    if (!choice || choice.outcome !== 'accepted') installDeclinedThisSession = true;
-    hideInstallOffer();
+    if (choice && choice.outcome === 'accepted') {
+      hideInstallOffer();
+      return;
+    }
+    refreshInstallOffer();
     return;
   }
 
@@ -876,15 +874,23 @@ async function requestInstall(trigger) {
 window.addEventListener('installready', refreshInstallOffer);
 window.addEventListener('appinstalled', () => {
   window.__deferredInstall = null;
-  store.del('installDismissedAt');
   hideInstallOffer();
 });
 
-$('btnInstall').addEventListener('click', event => requestInstall(event.currentTarget));
-$('btnDismissInstall').addEventListener('click', () => {
-  store.set('installDismissedAt', Date.now());
-  hideInstallOffer();
-});
+const installButton = $('btnInstall');
+installButton.textContent = 'Install Aplikasi';
+installButton.addEventListener('click', event => requestInstall(event.currentTarget));
+
+const dismissInstallButton = $('btnDismissInstall');
+if (dismissInstallButton) {
+  dismissInstallButton.classList.add('hidden');
+  dismissInstallButton.setAttribute('aria-hidden', 'true');
+  dismissInstallButton.tabIndex = -1;
+}
+
+const standaloneQuery = window.matchMedia('(display-mode: standalone)');
+if (standaloneQuery.addEventListener) standaloneQuery.addEventListener('change', refreshInstallOffer);
+
 $('btnCloseInstallSheet').addEventListener('click', closeInstallSheet);
 $('installSheet').addEventListener('click', event => {
   if (event.target.id === 'installSheet') closeInstallSheet();
