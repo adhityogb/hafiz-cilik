@@ -1,7 +1,7 @@
 /* HafizKu — service worker: shell, teks, font, dan audio offline. */
 importScripts('./data.js');
 // Tambahkan suffix rilis agar perubahan shell (termasuk app.js) tidak tertahan cache lama.
-const VERSION = APP_VERSION + '-hafizku-logo-v2-20260827';
+const VERSION = APP_VERSION + '-juz30-icons-v1-20260828';
 const SHELL = 'hafiz-shell-' + VERSION;
 const FONTS = 'hafiz-fonts-' + VERSION;
 const TEXT = 'hafiz-text-' + VERSION;
