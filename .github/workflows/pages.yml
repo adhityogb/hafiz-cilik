@@ -1,4 +1,4 @@
-name: Deploy Hafizku to GitHub Pages
+name: Deploy HafizKu to GitHub Pages
 
 on:
   push:
@@ -76,8 +76,8 @@ jobs:
           assert rows == expected, 'data.js id/start/n changed'
 
           assert './app.css' in index and './app.js' in index and './data.js' in index
-          assert manifest['name'].startswith('Hafizku')
-          assert manifest['short_name'] == 'Hafizku'
+          assert manifest['name'].startswith('HafizKu')
+          assert manifest['short_name'] == 'HafizKu'
           assert manifest['start_url'] == './' and manifest['scope'] == './'
           assert manifest['display'] == 'standalone'
           sizes = {icon['sizes'] for icon in manifest['icons']}
