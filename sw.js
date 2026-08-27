@@ -1,13 +1,13 @@
 /* HafizKu — service worker: shell, teks, font, dan audio offline. */
 importScripts('./data.js');
 // Tambahkan suffix rilis agar perubahan shell (termasuk app.js) tidak tertahan cache lama.
-const VERSION = APP_VERSION + '-hafizku-brand-20260827';
+const VERSION = APP_VERSION + '-hafizku-logo-v2-20260827';
 const SHELL = 'hafiz-shell-' + VERSION;
 const FONTS = 'hafiz-fonts-' + VERSION;
 const TEXT = 'hafiz-text-' + VERSION;
 const AUDIO = AUDIO_CACHE_NAME;
 const LEGACY_AUDIO = ['hafiz-audio-v1'];
-const SHELL_FILES = ['./','./index.html','./app.css','./app.js','./data.js','./manifest.webmanifest','./icons/favicon.svg','./icons/apple-touch-icon.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
+const SHELL_FILES = ['./','./index.html','./app.css','./app.js','./data.js','./manifest.webmanifest','./icons/favicon-48.png','./icons/apple-touch-icon.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(SHELL).then(cache => cache.addAll(SHELL_FILES)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   const keep = new Set([SHELL,FONTS,TEXT,AUDIO]);

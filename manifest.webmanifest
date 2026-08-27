@@ -8,8 +8,8 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FFFFFF",
-  "theme_color": "#0F9D8B",
+  "background_color": "#E0F2FE",
+  "theme_color": "#38BDF8",
   "categories": [
     "education",
     "kids"
