@@ -43,7 +43,7 @@ jobs:
           index = Path('index.html').read_text()
           manifest = json.loads(Path('manifest.webmanifest').read_text())
 
-          assert "const APP_VERSION = '10.1.0';" in data
+          assert "const APP_VERSION = '10.2.0';" in data
           assert "const AUDIO_CACHE_NAME = 'hafiz-audio-v2';" in data
           assert "const AUDIO_CACHE = AUDIO_CACHE_NAME;" in app
           assert "const AUDIO = AUDIO_CACHE_NAME;" in sw
@@ -101,7 +101,7 @@ jobs:
           const vm = require('vm');
           const source = fs.readFileSync('sw.js', 'utf8').replace("importScripts('./data.js');", '');
           const context = {
-            APP_VERSION: '10.1.0',
+            APP_VERSION: '10.2.0',
             AUDIO_CACHE_NAME: 'hafiz-audio-v2',
             AUDIO_HOSTS: [],
             self: { addEventListener() {}, clients: { claim: async () => {} }, location: { origin: 'https://example.test' } },
