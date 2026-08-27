@@ -1,13 +1,18 @@
 /* HafizKu — service worker: shell, teks, font, dan audio offline. */
 importScripts('./data.js');
-// Tambahkan suffix rilis agar perubahan shell (termasuk app.js) tidak tertahan cache lama.
-const VERSION = APP_VERSION + '-juz30-icons-v2-20260828';
+// Suffix rilis dipisahkan dari APP_VERSION agar paket ikon bisa dipaksa refresh.
+const VERSION = APP_VERSION + '-juz30-icons-v3-20260828';
 const SHELL = 'hafiz-shell-' + VERSION;
 const FONTS = 'hafiz-fonts-' + VERSION;
 const TEXT = 'hafiz-text-' + VERSION;
 const AUDIO = AUDIO_CACHE_NAME;
 const LEGACY_AUDIO = ['hafiz-audio-v1'];
-const SHELL_FILES = ['./','./index.html','./app.css','./app.js','./data.js','./manifest.webmanifest','./icons/favicon-48.png','./icons/apple-touch-icon.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png'];
+const SURAH_ICON_CACHE_FILES = ['./icons/surah/078-an-naba.svg','./icons/surah/079-an-naziat.svg','./icons/surah/080-abasa.svg','./icons/surah/081-at-takwir.svg','./icons/surah/082-al-infithar.svg','./icons/surah/083-al-muthaffifin.svg','./icons/surah/084-al-insyiqaq.svg','./icons/surah/085-al-buruj.svg','./icons/surah/086-ath-thariq.svg','./icons/surah/087-al-ala.svg','./icons/surah/088-al-ghasyiyah.svg','./icons/surah/089-al-fajr.svg','./icons/surah/090-al-balad.svg','./icons/surah/091-asy-syams.svg','./icons/surah/092-al-lail.svg','./icons/surah/093-adh-dhuha.svg','./icons/surah/094-asy-syarh.svg','./icons/surah/095-at-tin.svg','./icons/surah/096-al-alaq.svg','./icons/surah/097-al-qadr.svg','./icons/surah/098-al-bayyinah.svg','./icons/surah/099-az-zalzalah.svg','./icons/surah/100-al-adiyat.svg','./icons/surah/101-al-qariah.svg','./icons/surah/102-at-takatsur.svg','./icons/surah/103-al-asr.svg','./icons/surah/104-al-humazah.svg','./icons/surah/105-al-fil.svg','./icons/surah/106-quraisy.svg','./icons/surah/107-al-maun.svg','./icons/surah/108-al-kautsar.svg','./icons/surah/109-al-kafirun.svg','./icons/surah/110-an-nasr.svg','./icons/surah/111-al-masad.svg','./icons/surah/112-al-ikhlas.svg','./icons/surah/113-al-falaq.svg','./icons/surah/114-an-nas.svg'];
+const SHELL_FILES = [
+  './','./index.html','./app.css','./app.js','./data.js','./manifest.webmanifest',
+  './icons/favicon-48.png','./icons/apple-touch-icon.png','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png',
+  ...SURAH_ICON_CACHE_FILES
+];
 self.addEventListener('install', event => event.waitUntil(caches.open(SHELL).then(cache => cache.addAll(SHELL_FILES)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   const keep = new Set([SHELL,FONTS,TEXT,AUDIO]);
