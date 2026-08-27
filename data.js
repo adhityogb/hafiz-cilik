@@ -113,6 +113,11 @@ async function installSurahIcons() {
   }));
 
   defs.insertAdjacentHTML('beforeend', symbols.join(''));
+  // Paksa browser (khususnya Safari/iOS) mengevaluasi ulang <use> yang sudah dirender.
+  document.querySelectorAll('use[href^="#s-"]').forEach(use => {
+    const href = use.getAttribute('href');
+    if (href) use.setAttribute('href', href);
+  });
 }
 installSurahIcons();
 
