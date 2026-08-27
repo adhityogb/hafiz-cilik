@@ -1,15 +1,15 @@
 {
-  "name": "Hafizku — Teman Hafalan Juz 30",
-  "short_name": "Hafizku",
-  "description": "Dengar, ulang, dan hafalkan Juz 30 dengan cara yang ramah anak.",
+  "name": "HafizKu — Teman Hafalan Juz 30",
+  "short_name": "HafizKu",
+  "description": "HafizKu membantu anak mendengar, mengulang, dan menghafal Juz 30 dengan fokus.",
   "lang": "id",
   "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#E0F2FE",
-  "theme_color": "#38BDF8",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0F9D8B",
   "categories": [
     "education",
     "kids"
