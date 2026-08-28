@@ -128,3 +128,55 @@ svg.ico,.card__sym,.hero__sym,.ayah__cue>svg,.sky__star,.sky__moon{width:22px;he
   #viewSurah { padding-top: 20px; }
   #viewSurah > .bar { margin-bottom: 17px; }
 }
+
+
+/* Standalone Basmalah + Quran typography */
+.basmalah{
+  direction:rtl;
+  text-align:center;
+  margin:2px 0 3px;
+  padding:13px 18px 11px;
+  border:2px solid rgba(125,211,252,.72);
+  border-radius:var(--r-md);
+  background:rgba(255,255,255,.82);
+  color:#0C4A6E;
+  box-shadow:0 4px 10px rgba(14,116,144,.06);
+}
+.basmalah__ar,.ayah__ar,.hero__ar,.card__ar{
+  font-family:var(--arabic);
+  font-weight:400;
+  font-synthesis:none;
+  font-kerning:normal;
+  font-variant-ligatures:common-ligatures contextual;
+  font-feature-settings:"kern" 1,"liga" 1,"calt" 1;
+  letter-spacing:0;
+  text-rendering:optimizeLegibility;
+}
+.basmalah__ar{
+  display:block;
+  font-size:clamp(2rem,6vw,2.55rem);
+  line-height:1.75;
+  white-space:normal;
+  word-break:normal;
+  overflow-wrap:normal;
+  unicode-bidi:isolate;
+}
+.ayah__ar{
+  direction:rtl;
+  text-align:right;
+  font-size:2rem;
+  line-height:2.05;
+  margin:0 0 7px;
+  padding:.04em 0 .08em;
+  white-space:normal;
+  word-break:normal;
+  overflow-wrap:normal;
+  unicode-bidi:isolate;
+}
+.hero__ar{line-height:1.65}
+.card__ar{line-height:1.65}
+@media(max-width:430px){
+  .basmalah{padding:11px 13px 9px}
+  .basmalah__ar{font-size:1.95rem;line-height:1.75}
+  .ayah__ar{font-size:1.78rem;line-height:2}
+}

@@ -125,6 +125,34 @@ function icon(id, cls) {
 function esc(s) {
   return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
+
+const BASMALAH_AR = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
+const ARABIC_MARK_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/u;
+
+function stripBasmalahArabic(text) {
+  const source = String(text || '').trim();
+  const target = 'بسم الله الرحمن الرحيم';
+  let i = 0;
+  let t = 0;
+  const isSpace = ch => /\s/u.test(ch);
+  const normalizedLetter = ch => 'ٱأإآ'.includes(ch) ? 'ا' : ch;
+
+  while (i < source.length && isSpace(source[i])) i++;
+  while (t < target.length) {
+    if (target[t] === ' ') {
+      while (t < target.length && target[t] === ' ') t++;
+      while (i < source.length && isSpace(source[i])) i++;
+      continue;
+    }
+    while (i < source.length && (ARABIC_MARK_RE.test(source[i]) || source[i] === 'ـ')) i++;
+    if (i >= source.length || normalizedLetter(source[i]) !== target[t]) return source;
+    i++;
+    t++;
+  }
+  while (i < source.length && (isSpace(source[i]) || ARABIC_MARK_RE.test(source[i]) || source[i] === 'ـ')) i++;
+  return source.slice(i).trim();
+}
+
 function toast(msg) {
   const t = $('toast');
   $('toastText').textContent = msg;
@@ -296,6 +324,9 @@ function renderVerses() {
   const hasText = state.verses.some(v => v.ar);
   const wrap = $('ayat');
   const marker = state.surah ? getMarker(state.surah.id) : 0;
+  const basmalahHtml = state.surah && state.surah.id !== 9
+    ? `<div class="basmalah" dir="rtl" lang="ar"><span class="basmalah__ar">${BASMALAH_AR}</span></div>`
+    : '';
 
   if (state.hideText) {
     wrap.className = 'ayat ayat--numbers';
@@ -315,7 +346,7 @@ function renderVerses() {
   }
 
   wrap.className = 'ayat' + (hasText ? ' ayat--full' : '');
-  wrap.innerHTML = state.verses.map((v, i) => `
+  wrap.innerHTML = basmalahHtml + state.verses.map((v, i) => `
     <div class="ayah-wrap ${marker === v.no ? 'is-marked' : ''}">
       <button class="ayah" type="button" data-idx="${i}" id="ayah${i}">
         <span class="ayah__no" aria-hidden="true">${v.no}</span>
@@ -372,7 +403,7 @@ async function loadText(s) {
     }
 
     const rows = state.verses.map((v, i) => ({
-      ar: ar[i] ? ar[i].text : '',
+      ar: ar[i] ? (i === 0 ? stripBasmalahArabic(ar[i].text) : ar[i].text) : '',
       latin: tl[i] ? tl[i].text : '',
       id: id[i] ? id[i].text : ''
     }));
@@ -387,7 +418,7 @@ async function loadText(s) {
 function applyText(rows) {
   state.verses.forEach((v, i) => {
     if (!rows[i]) return;
-    v.ar = rows[i].ar; v.latin = rows[i].latin; v.id = rows[i].id;
+    v.ar = i === 0 ? stripBasmalahArabic(rows[i].ar) : rows[i].ar; v.latin = rows[i].latin; v.id = rows[i].id;
   });
   const keep = state.playing ? state.playing.idx : null;
   renderVerses();

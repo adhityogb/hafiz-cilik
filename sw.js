@@ -1,7 +1,7 @@
 /* HafizKu — service worker: shell, teks, font, dan audio offline. */
 importScripts('./data.js');
 // Suffix rilis dipisahkan dari APP_VERSION agar paket ikon bisa dipaksa refresh.
-const VERSION = APP_VERSION + '-juz30-icons-v3-20260828';
+const VERSION = APP_VERSION + '-basmalah-arabic-v1-20260828';
 const SHELL = 'hafiz-shell-' + VERSION;
 const FONTS = 'hafiz-fonts-' + VERSION;
 const TEXT = 'hafiz-text-' + VERSION;
