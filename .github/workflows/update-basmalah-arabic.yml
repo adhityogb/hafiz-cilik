@@ -20,6 +20,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          from textwrap import dedent
 
           app_path = Path('app.js')
           css_path = Path('app.css')
@@ -29,120 +30,115 @@ jobs:
           css = css_path.read_text(encoding='utf-8')
           sw = sw_path.read_text(encoding='utf-8')
 
-          helper_marker = 'const BASMALAH_AR ='
-          if helper_marker not in app:
+          if 'const BASMALAH_AR =' not in app:
               anchor = 'function toast(msg) {'
               assert anchor in app, 'toast anchor not found'
-              helper = r'''const BASMALAH_AR = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
-const ARABIC_MARK_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/u;
+              helper = dedent(r'''
+              const BASMALAH_AR = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
+              const ARABIC_MARK_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/u;
 
-function stripBasmalahArabic(text) {
-  const source = String(text || '').trim();
-  const target = 'بسم الله الرحمن الرحيم';
-  let i = 0;
-  let t = 0;
+              function stripBasmalahArabic(text) {
+                const source = String(text || '').trim();
+                const target = 'بسم الله الرحمن الرحيم';
+                let i = 0;
+                let t = 0;
+                const isSpace = ch => /\s/u.test(ch);
+                const normalizedLetter = ch => 'ٱأإآ'.includes(ch) ? 'ا' : ch;
 
-  const isSpace = ch => /\s/u.test(ch);
-  const normalizedLetter = ch => {
-    if ('ٱأإآ'.includes(ch)) return 'ا';
-    return ch;
-  };
+                while (i < source.length && isSpace(source[i])) i++;
+                while (t < target.length) {
+                  if (target[t] === ' ') {
+                    while (t < target.length && target[t] === ' ') t++;
+                    while (i < source.length && isSpace(source[i])) i++;
+                    continue;
+                  }
+                  while (i < source.length && (ARABIC_MARK_RE.test(source[i]) || source[i] === 'ـ')) i++;
+                  if (i >= source.length || normalizedLetter(source[i]) !== target[t]) return source;
+                  i++;
+                  t++;
+                }
+                while (i < source.length && (isSpace(source[i]) || ARABIC_MARK_RE.test(source[i]) || source[i] === 'ـ')) i++;
+                return source.slice(i).trim();
+              }
 
-  while (i < source.length && isSpace(source[i])) i++;
-  while (t < target.length) {
-    if (target[t] === ' ') {
-      while (t < target.length && target[t] === ' ') t++;
-      while (i < source.length && isSpace(source[i])) i++;
-      continue;
-    }
-    while (i < source.length && (ARABIC_MARK_RE.test(source[i]) || source[i] === 'ـ')) i++;
-    if (i >= source.length || normalizedLetter(source[i]) !== target[t]) return source;
-    i++;
-    t++;
-  }
-  while (i < source.length && (isSpace(source[i]) || ARABIC_MARK_RE.test(source[i]) || source[i] === 'ـ')) i++;
-  return source.slice(i).trim();
-}
-
-'''
+              ''')
               app = app.replace(anchor, helper + anchor, 1)
 
           marker_anchor = "  const marker = state.surah ? getMarker(state.surah.id) : 0;\n"
           if 'const basmalahHtml =' not in app:
               assert marker_anchor in app, 'renderVerses marker anchor not found'
-              basmalah = marker_anchor + "  const basmalahHtml = state.surah && state.surah.id !== 9\n    ? `<div class=\"basmalah\" dir=\"rtl\" lang=\"ar\"><span class=\"basmalah__ar\">${BASMALAH_AR}</span></div>`\n    : '';\n"
-              app = app.replace(marker_anchor, basmalah, 1)
+              addition = marker_anchor + "  const basmalahHtml = state.surah && state.surah.id !== 9\n    ? `<div class=\"basmalah\" dir=\"rtl\" lang=\"ar\"><span class=\"basmalah__ar\">${BASMALAH_AR}</span></div>`\n    : '';\n"
+              app = app.replace(marker_anchor, addition, 1)
 
           full_anchor = "  wrap.className = 'ayat' + (hasText ? ' ayat--full' : '');\n  wrap.innerHTML = state.verses.map((v, i) => `"
-          if "wrap.innerHTML = basmalahHtml + state.verses.map" not in app:
+          if 'wrap.innerHTML = basmalahHtml + state.verses.map' not in app:
               assert full_anchor in app, 'full verse render anchor not found'
               app = app.replace(full_anchor, "  wrap.className = 'ayat' + (hasText ? ' ayat--full' : '');\n  wrap.innerHTML = basmalahHtml + state.verses.map((v, i) => `", 1)
 
           load_anchor = "      ar: ar[i] ? ar[i].text : '',"
-          if "i === 0 ? stripBasmalahArabic(ar[i].text)" not in app:
+          if 'i === 0 ? stripBasmalahArabic(ar[i].text)' not in app:
               assert load_anchor in app, 'loadText Arabic row anchor not found'
               app = app.replace(load_anchor, "      ar: ar[i] ? (i === 0 ? stripBasmalahArabic(ar[i].text) : ar[i].text) : '',", 1)
 
           apply_anchor = "    v.ar = rows[i].ar; v.latin = rows[i].latin; v.id = rows[i].id;"
-          if "v.ar = i === 0 ? stripBasmalahArabic(rows[i].ar)" not in app:
+          if 'v.ar = i === 0 ? stripBasmalahArabic(rows[i].ar)' not in app:
               assert apply_anchor in app, 'applyText anchor not found'
               app = app.replace(apply_anchor, "    v.ar = i === 0 ? stripBasmalahArabic(rows[i].ar) : rows[i].ar; v.latin = rows[i].latin; v.id = rows[i].id;", 1)
 
-          css_marker = '/* Standalone Basmalah + Quran typography */'
-          if css_marker not in css:
-              css += r'''
+          if '/* Standalone Basmalah + Quran typography */' not in css:
+              css += dedent(r'''
 
-/* Standalone Basmalah + Quran typography */
-.basmalah{
-  direction:rtl;
-  text-align:center;
-  margin:2px 0 3px;
-  padding:13px 18px 11px;
-  border:2px solid rgba(125,211,252,.72);
-  border-radius:var(--r-md);
-  background:rgba(255,255,255,.82);
-  color:#0C4A6E;
-  box-shadow:0 4px 10px rgba(14,116,144,.06);
-}
-.basmalah__ar,.ayah__ar,.hero__ar,.card__ar{
-  font-family:var(--arabic);
-  font-weight:400;
-  font-synthesis:none;
-  font-kerning:normal;
-  font-variant-ligatures:common-ligatures contextual;
-  font-feature-settings:"kern" 1,"liga" 1,"calt" 1;
-  letter-spacing:0;
-  text-rendering:optimizeLegibility;
-}
-.basmalah__ar{
-  display:block;
-  font-size:clamp(2rem,6vw,2.55rem);
-  line-height:1.75;
-  white-space:normal;
-  word-break:normal;
-  overflow-wrap:normal;
-  unicode-bidi:isolate;
-}
-.ayah__ar{
-  direction:rtl;
-  text-align:right;
-  font-size:2rem;
-  line-height:2.05;
-  margin:0 0 7px;
-  padding:.04em 0 .08em;
-  white-space:normal;
-  word-break:normal;
-  overflow-wrap:normal;
-  unicode-bidi:isolate;
-}
-.hero__ar{line-height:1.65}
-.card__ar{line-height:1.65}
-@media(max-width:430px){
-  .basmalah{padding:11px 13px 9px}
-  .basmalah__ar{font-size:1.95rem;line-height:1.75}
-  .ayah__ar{font-size:1.78rem;line-height:2}
-}
-'''
+              /* Standalone Basmalah + Quran typography */
+              .basmalah{
+                direction:rtl;
+                text-align:center;
+                margin:2px 0 3px;
+                padding:13px 18px 11px;
+                border:2px solid rgba(125,211,252,.72);
+                border-radius:var(--r-md);
+                background:rgba(255,255,255,.82);
+                color:#0C4A6E;
+                box-shadow:0 4px 10px rgba(14,116,144,.06);
+              }
+              .basmalah__ar,.ayah__ar,.hero__ar,.card__ar{
+                font-family:var(--arabic);
+                font-weight:400;
+                font-synthesis:none;
+                font-kerning:normal;
+                font-variant-ligatures:common-ligatures contextual;
+                font-feature-settings:"kern" 1,"liga" 1,"calt" 1;
+                letter-spacing:0;
+                text-rendering:optimizeLegibility;
+              }
+              .basmalah__ar{
+                display:block;
+                font-size:clamp(2rem,6vw,2.55rem);
+                line-height:1.75;
+                white-space:normal;
+                word-break:normal;
+                overflow-wrap:normal;
+                unicode-bidi:isolate;
+              }
+              .ayah__ar{
+                direction:rtl;
+                text-align:right;
+                font-size:2rem;
+                line-height:2.05;
+                margin:0 0 7px;
+                padding:.04em 0 .08em;
+                white-space:normal;
+                word-break:normal;
+                overflow-wrap:normal;
+                unicode-bidi:isolate;
+              }
+              .hero__ar{line-height:1.65}
+              .card__ar{line-height:1.65}
+              @media(max-width:430px){
+                .basmalah{padding:11px 13px 9px}
+                .basmalah__ar{font-size:1.95rem;line-height:1.75}
+                .ayah__ar{font-size:1.78rem;line-height:2}
+              }
+              ''')
 
           old_version = "const VERSION = APP_VERSION + '-juz30-icons-v3-20260828';"
           new_version = "const VERSION = APP_VERSION + '-basmalah-arabic-v1-20260828';"
@@ -166,11 +162,11 @@ function stripBasmalahArabic(text) {
           app = Path('app.js').read_text(encoding='utf-8')
           css = Path('app.css').read_text(encoding='utf-8')
           sw = Path('sw.js').read_text(encoding='utf-8')
-          assert "const BASMALAH_AR =" in app
+          assert 'const BASMALAH_AR =' in app
           assert 'stripBasmalahArabic' in app
           assert 'wrap.innerHTML = basmalahHtml + state.verses.map' in app
-          assert "i === 0 ? stripBasmalahArabic(ar[i].text)" in app
-          assert "i === 0 ? stripBasmalahArabic(rows[i].ar)" in app
+          assert 'i === 0 ? stripBasmalahArabic(ar[i].text)' in app
+          assert 'i === 0 ? stripBasmalahArabic(rows[i].ar)' in app
           assert '.basmalah__ar' in css
           assert 'font-synthesis:none' in css
           assert 'basmalah-arabic-v1-20260828' in sw
