@@ -129,27 +129,22 @@ function esc(s) {
 const BASMALAH_AR = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
 const ARABIC_MARK_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/u;
 
+
 function stripBasmalahArabic(text) {
   const source = String(text || '').trim();
-  const target = 'بسم الله الرحمن الرحيم';
+  const target = 'بسماللهالرحمنالرحيم';
   let i = 0;
   let t = 0;
-  const isSpace = ch => /\s/u.test(ch);
+  const isIgnorable = ch => /\s/u.test(ch) || ARABIC_MARK_RE.test(ch) || ch === 'ـ';
   const normalizedLetter = ch => 'ٱأإآ'.includes(ch) ? 'ا' : ch;
 
-  while (i < source.length && isSpace(source[i])) i++;
   while (t < target.length) {
-    if (target[t] === ' ') {
-      while (t < target.length && target[t] === ' ') t++;
-      while (i < source.length && isSpace(source[i])) i++;
-      continue;
-    }
-    while (i < source.length && (ARABIC_MARK_RE.test(source[i]) || source[i] === 'ـ')) i++;
+    while (i < source.length && isIgnorable(source[i])) i++;
     if (i >= source.length || normalizedLetter(source[i]) !== target[t]) return source;
     i++;
     t++;
   }
-  while (i < source.length && (isSpace(source[i]) || ARABIC_MARK_RE.test(source[i]) || source[i] === 'ـ')) i++;
+  while (i < source.length && isIgnorable(source[i])) i++;
   return source.slice(i).trim();
 }
 
