@@ -173,8 +173,8 @@ function renderSky() {
     s.setAttribute('class', 'sky__star');
     s.setAttribute('aria-hidden', 'true');
     // posisi ditentukan dari indeks, bukan acak, supaya bintang tidak berpindah
-    s.style.left = (6 + ((i * 37) % 108)) + 'px';
-    s.style.top = (7 + ((i * 19) % 34)) + 'px';
+    s.style.left = (7 + ((i * 17) % 40)) + 'px';
+    s.style.top = (7 + ((i * 13) % 34)) + 'px';
     s.style.animationDelay = (i % 7) * 0.3 + 's';
     s.innerHTML = '<use href="#i-star"></use>';
     sky.appendChild(s);
@@ -841,6 +841,27 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') suspendAudioSession();
 });
 
+
+/* ---------- kunci zoom PWA/mobile ---------- */
+function lockAppZoom() {
+  const preventGesture = event => event.preventDefault();
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+    document.addEventListener(type, preventGesture, { passive: false });
+  });
+
+  document.addEventListener('touchmove', event => {
+    if (event.touches && event.touches.length > 1) event.preventDefault();
+  }, { passive: false });
+
+  let lastTextTap = 0;
+  document.addEventListener('touchend', event => {
+    const interactive = event.target && event.target.closest && event.target.closest('button,a,input,select,textarea');
+    const now = Date.now();
+    if (!interactive && now - lastTextTap < 300) event.preventDefault();
+    lastTextTap = now;
+  }, { passive: false });
+}
+lockAppZoom();
 
 /* ---------- pasang di layar utama ---------- */
 let installTrigger = null;
