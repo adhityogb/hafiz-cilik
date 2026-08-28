@@ -131,11 +131,16 @@ const ARABIC_MARK_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/u;
 
 
 function stripBasmalahArabic(text) {
-  const source = String(text || '').trim();
+  const source = String(text || '').normalize('NFC').trim();
+  if (!source) return '';
+
+  // Some Quran sources may encode the complete Basmalah as the single ﷽ ligature.
+  if (source[0] === '\uFDFD') return source.slice(1).trim();
+
   const target = 'بسماللهالرحمنالرحيم';
   let i = 0;
   let t = 0;
-  const isIgnorable = ch => /\s/u.test(ch) || ARABIC_MARK_RE.test(ch) || ch === 'ـ';
+  const isIgnorable = ch => /[\s\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u200C-\u200F\u061C\uFEFF]/u.test(ch) || ch === 'ـ';
   const normalizedLetter = ch => 'ٱأإآ'.includes(ch) ? 'ا' : ch;
 
   while (t < target.length) {
@@ -145,7 +150,7 @@ function stripBasmalahArabic(text) {
     t++;
   }
   while (i < source.length && isIgnorable(source[i])) i++;
-  return source.slice(i).trim();
+  return source.slice(i).replace(/^[۝۞،؛:،.\-–—]+/u, '').trim();
 }
 
 function toast(msg) {
@@ -326,7 +331,7 @@ function renderVerses() {
   if (state.hideText) {
     wrap.className = 'ayat ayat--numbers';
     wrap.innerHTML = state.verses.map((v, i) => `
-      <div class="ayah-card ${marker === v.no ? 'is-marked' : ''}">
+      <div class="ayah-card ayah-tone-${i % 6} ${marker === v.no ? 'is-marked' : ''}">
         <button class="ayah-number" type="button" data-idx="${i}" id="ayah${i}" aria-label="Putar ayat ${v.no}">
           <span class="ayah__no">${v.no}</span>
           <span class="ayah-number__label">Ayat ${v.no}<small>Tekan untuk dengar</small></span>
@@ -342,7 +347,7 @@ function renderVerses() {
 
   wrap.className = 'ayat' + (hasText ? ' ayat--full' : '');
   wrap.innerHTML = basmalahHtml + state.verses.map((v, i) => `
-    <div class="ayah-wrap ${marker === v.no ? 'is-marked' : ''}">
+    <div class="ayah-wrap ayah-tone-${i % 6} ${marker === v.no ? 'is-marked' : ''}">
       <button class="ayah" type="button" data-idx="${i}" id="ayah${i}">
         <span class="ayah__no" aria-hidden="true">${v.no}</span>
         <span class="ayah__body">
@@ -376,7 +381,13 @@ const EDITIONS = 'quran-uthmani,en.transliteration,id.indonesian';
 async function loadText(s) {
   const cached = store.get('text:' + s.id, null);
   if (cached && cached.length === s.n) {
-    applyText(cached);
+    const cleaned = cached.map((row, i) => i === 0
+      ? { ...row, ar: stripBasmalahArabic(row && row.ar) }
+      : row);
+    const before = cached[0] && cached[0].ar ? cached[0].ar : '';
+    const after = cleaned[0] && cleaned[0].ar ? cleaned[0].ar : '';
+    if (before !== after) store.set('text:' + s.id, cleaned);
+    applyText(cleaned);
     return;
   }
   setStatusAll('Mengambil teks ayat…');
