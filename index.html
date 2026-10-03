@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Nunito:wght@600;700;800&family=Amiri+Quran&display=swap">
 
-<link rel="stylesheet" href="./app.css?v=20260828c">
+<link rel="stylesheet" href="./app.css?v=20261003a">
 </head>
 <body>
 
@@ -41,6 +41,7 @@
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.8l4.6 4.7L19 6.8"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6.5 9.5L12 15l5.5-5.5"/></symbol>
     <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.4M12 18.6V21M4.6 7.8l2 1.2M17.4 15l2 1.2M4.6 16.2l2-1.2M17.4 9l2-1.2"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5.5" y="10" width="13" height="10" rx="3"/><path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10"/><circle cx="12" cy="15" r="1.2" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 3.5L20 6.5l-3 3M20 6.5H9a4.5 4.5 0 0 0 0 9M7 20.5l-3-3 3-3M4 17.5h11a4.5 4.5 0 0 0 0-9"/></symbol>
     <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 17a8.5 8.5 0 1 1 16 0"/><path d="M12 17l4.2-4.7"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3.2 2"/></symbol>
@@ -181,14 +182,53 @@
 
 </div>
 
+
+<!-- ====================== gerbang PIN orang tua ====================== -->
+<div class="sheet hidden parent-gate" id="parentGate" role="dialog" aria-modal="true" aria-labelledby="parentGateTitle">
+  <div class="parent-gate__panel">
+    <div class="parent-gate__icon" aria-hidden="true">
+      <svg class="ico"><use href="#i-lock"></use></svg>
+    </div>
+    <h2 id="parentGateTitle">Pengaturan Orang Tua</h2>
+    <p class="parent-gate__hint" id="parentGateHint">Masukkan PIN 4 digit untuk membuka pengaturan.</p>
+    <form id="parentPinForm" novalidate>
+      <label class="sr-only" for="parentPinInput">PIN Orang Tua 4 digit</label>
+      <input class="parent-pin__input" id="parentPinInput" type="password" inputmode="numeric"
+             pattern="[0-9]*" maxlength="4" autocomplete="off" enterkeyhint="done"
+             aria-describedby="parentPinError parentGateNote" placeholder="••••">
+      <p class="parent-pin__error" id="parentPinError" role="status" aria-live="polite"></p>
+      <div class="parent-pin__actions">
+        <button class="btn btn--soft" id="btnCancelParentGate" type="button">Batal</button>
+        <button class="btn btn--go" id="btnParentPinSubmit" type="submit">Masuk</button>
+      </div>
+    </form>
+    <p class="parent-gate__note" id="parentGateNote">PIN hanya tersimpan di perangkat ini. Proteksi ini dibuat untuk membatasi akses anak ke pengaturan, bukan sebagai sistem keamanan akun.</p>
+  </div>
+</div>
+
 <!-- ====================== panel orang tua ====================== -->
 <div class="sheet hidden" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="sheet__panel">
     <div class="sheet__head">
       <svg class="ico" style="width:26px;height:26px" aria-hidden="true"><use href="#i-gear"></use></svg>
-      <h2 id="sheetTitle">Pengaturan</h2>
+      <h2 id="sheetTitle">Pengaturan Orang Tua</h2>
       <span class="bar__spacer"></span>
       <button class="btn" id="btnCloseSheet" type="button">Tutup</button>
+    </div>
+
+    <div class="row parent-security">
+      <div class="row__top">
+        <svg class="ico" style="width:20px;height:20px" aria-hidden="true"><use href="#i-lock"></use></svg>
+        <span class="row__label">Proteksi PIN Orang Tua</span>
+        <span class="bar__spacer"></span>
+        <button class="switch" id="btnParentProtection" type="button" role="switch" aria-checked="true" aria-label="Proteksi PIN Orang Tua"><span></span></button>
+      </div>
+      <span class="row__hint">Aktif secara default. Saat aktif, PIN 4 digit diperlukan setiap kali Pengaturan Orang Tua dibuka.</span>
+      <div class="parent-security__actions">
+        <button class="btn btn--soft" id="btnChangeParentPin" type="button">
+          <svg class="ico" aria-hidden="true"><use href="#i-lock"></use></svg> Ubah PIN
+        </button>
+      </div>
     </div>
 
     <div class="row">
@@ -212,10 +252,17 @@
       <span class="row__hint">Sembunyikan teks Arab, latin, dan arti. Daftar ayat menjadi tombol angka saja.</span>
     </div>
 
-    <div class="row" style="margin-top:10px">
-      <div class="row__top"><span class="row__label">Target Hafalan</span></div>
-      <span class="row__hint">Pilih surah yang sedang dihafal dari level mana pun.</span>
+    <div class="row target-row" style="margin-top:10px">
+      <div class="row__top target-row__head">
+        <span class="row__label">Target Hafalan</span>
+        <span class="target-count" id="focusCount">0 surah dipilih</span>
+      </div>
+      <span class="row__hint">Pilih surah yang sedang dihafal. Surah terpilih otomatis masuk ke tab “Target Hafalan” di halaman utama.</span>
       <div class="focus-pick" id="focusPicker"></div>
+      <div class="target-actions">
+        <button class="btn btn--soft" id="btnClearFocus" type="button">Kosongkan</button>
+        <button class="btn" id="btnUseFocus" type="button">Buka Target Hafalan</button>
+      </div>
     </div>
 
     <div class="row" style="margin-top:10px">
@@ -272,7 +319,7 @@
   <span id="toastText"></span>
 </div>
 
-<script src="./data.js?v=20260828c"></script>
-<script src="./app.js?v=20260828c"></script>
+<script src="./data.js?v=20261003a"></script>
+<script src="./app.js?v=20261003a"></script>
 </body>
 </html>
