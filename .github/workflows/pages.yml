@@ -83,6 +83,10 @@ jobs:
           assert 'userVerification: \'required\'' in app
           assert 'id="btnSetupParentRecovery"' in index and 'id="btnHoldResetPin"' in index
           assert 'user-scalable=no' in index and 'maximum-scale=1' in index
+          # iOS regression: global touch/gesture preventDefault can swallow button clicks.
+          assert "document.addEventListener('touchmove'" not in app, 'global touchmove blocker returned'
+          assert "document.addEventListener('touchend'" not in app, 'global touchend blocker returned'
+          assert "document.addEventListener('gesturestart'" not in app, 'global gesture blocker returned'
           assert manifest['name'].startswith('HafizKu')
           assert manifest['short_name'] == 'HafizKu'
           assert manifest['start_url'] == './' and manifest['scope'] == './'
