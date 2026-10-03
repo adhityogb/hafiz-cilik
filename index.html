@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Nunito:wght@600;700;800&family=Amiri+Quran&display=swap">
 
-<link rel="stylesheet" href="./app.css?v=20261003b">
+<link rel="stylesheet" href="./app.css?v=20261003c">
 </head>
 <body>
 
@@ -207,7 +207,7 @@
     <div class="parent-reset hidden" id="parentResetBox">
       <div class="parent-reset__warning">
         <b>Reset hanya PIN Orang Tua</b>
-        <span>Bintang, target hafalan, audio offline, dan progres anak tidak akan dihapus.</span>
+        <span>Bintang, target hafalan, audio offline, dan progres anak tidak akan dihapus. Setelah 10 detik, verifikasi Face ID / Touch ID / kunci perangkat akan diminta.</span>
       </div>
       <button class="hold-reset" id="btnHoldResetPin" type="button" aria-describedby="parentResetHelp">
         <span class="hold-reset__fill" aria-hidden="true"></span>
@@ -216,7 +216,7 @@
           <span id="holdResetText">Tahan 10 detik untuk reset</span>
         </span>
       </button>
-      <p class="parent-reset__help" id="parentResetHelp">Tetap tekan sampai animasi penuh. Lepaskan untuk membatalkan.</p>
+      <p class="parent-reset__help" id="parentResetHelp">Tetap tekan sampai animasi penuh. Lepaskan untuk membatalkan. Reset hanya dilanjutkan setelah verifikasi perangkat berhasil.</p>
       <button class="parent-forgot" id="btnBackToPin" type="button">Kembali ke PIN</button>
     </div>
 
@@ -247,6 +247,19 @@
           <svg class="ico" aria-hidden="true"><use href="#i-lock"></use></svg> Ubah PIN
         </button>
       </div>
+    </div>
+
+    <div class="row parent-recovery" style="margin-top:10px">
+      <div class="row__top">
+        <svg class="ico" style="width:20px;height:20px" aria-hidden="true"><use href="#i-check"></use></svg>
+        <span class="row__label">Pemulihan PIN dengan perangkat</span>
+        <span class="parent-recovery__status" id="parentRecoveryStatus">Memeriksa…</span>
+      </div>
+      <span class="row__hint">Daftarkan Face ID, Touch ID, atau kunci perangkat ini. Ini satu-satunya cara reset PIN dari dalam HafizKu jika PIN terlupa.</span>
+      <button class="btn btn--soft parent-recovery__button" id="btnSetupParentRecovery" type="button">
+        <svg class="ico" aria-hidden="true"><use href="#i-lock"></use></svg>
+        <span id="parentRecoveryButtonText">Aktifkan pemulihan perangkat</span>
+      </button>
     </div>
 
     <div class="row">
@@ -337,7 +350,7 @@
   <span id="toastText"></span>
 </div>
 
-<script src="./data.js?v=20261003b"></script>
-<script src="./app.js?v=20261003b"></script>
+<script src="./data.js?v=20261003c"></script>
+<script src="./app.js?v=20261003c"></script>
 </body>
 </html>
