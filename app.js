@@ -326,20 +326,16 @@ async function prepareParentResetAvailability() {
 
   const supported = await parentPlatformAuthenticatorAvailable();
   const enrolled = hasParentRecoveryCredential();
-  const available = supported && enrolled;
+  const enhanced = supported && enrolled;
 
-  button.disabled = !available;
-  button.classList.toggle('is-unavailable', !available);
+  button.disabled = false;
+  button.classList.remove('is-unavailable');
+  label.textContent = 'Tahan 10 detik untuk reset';
 
-  if (available) {
-    label.textContent = 'Tahan 10 detik untuk reset';
+  if (enhanced) {
     help.textContent = 'Tetap tekan sampai animasi penuh. Setelah itu Face ID / Touch ID / kunci perangkat akan diminta.';
-  } else if (!enrolled) {
-    label.textContent = 'Pemulihan perangkat belum aktif';
-    help.textContent = 'Reset dari app dinonaktifkan. Jika PIN benar-benar lupa, hapus data situs HafizKu lalu instal ulang. Progres lokal dapat ikut terhapus.';
   } else {
-    label.textContent = 'Verifikasi perangkat tidak tersedia';
-    help.textContent = 'Reset dari app tidak tersedia pada perangkat ini. Hapus data situs HafizKu lalu instal ulang sebagai opsi terakhir.';
+    help.textContent = 'Tetap tekan sampai animasi penuh. Karena pemulihan perangkat belum tersedia/aktif, PIN akan direset setelah hold 10 detik.';
   }
 }
 
@@ -488,6 +484,17 @@ async function completeForgottenPinResetHold() {
     button.style.setProperty('--hold-progress', '100%');
     button.disabled = true;
   }
+
+  const supported = await parentPlatformAuthenticatorAvailable();
+  const enrolled = hasParentRecoveryCredential();
+
+  if (!supported || !enrolled) {
+    if (label) label.textContent = 'Reset PIN…';
+    if (help) help.textContent = 'Hold 10 detik selesai. PIN lama sedang direset.';
+    setTimeout(performForgottenPinReset, 250);
+    return;
+  }
+
   if (label) label.textContent = 'Verifikasi perangkat…';
   if (help) help.textContent = 'Gunakan Face ID / Touch ID / kunci perangkat untuk mengonfirmasi bahwa Anda orang tua.';
 
