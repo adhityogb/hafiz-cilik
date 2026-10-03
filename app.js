@@ -159,6 +159,7 @@ const PARENT_PIN_LENGTH = 4;
 const PARENT_MAX_ATTEMPTS = 5;
 const PARENT_LOCK_MS = 30000;
 const PARENT_RESET_HOLD_MS = 10000;
+const PARENT_FORGOT_VISIBLE_AFTER = 3;
 let parentBrowseUnlocked = false;
 const parentGateState = {
   mode: 'unlock',
@@ -182,6 +183,164 @@ function hasParentPin() {
 
 function parentPinIsValid(pin) {
   return /^[0-9]{4}$/.test(String(pin || ''));
+}
+
+function hasParentRecoveryCredential() {
+  return Boolean(store.get('parentRecoveryCredentialId', ''));
+}
+
+function randomBytes(length = 32) {
+  const bytes = new Uint8Array(length);
+  if (!window.crypto || !window.crypto.getRandomValues) throw new Error('secure-random-unavailable');
+  window.crypto.getRandomValues(bytes);
+  return bytes;
+}
+
+function bytesToBase64Url(value) {
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  let binary = '';
+  bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64UrlToBytes(value) {
+  const base64 = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, ch => ch.charCodeAt(0));
+}
+
+async function parentPlatformAuthenticatorAvailable() {
+  if (!window.isSecureContext || !window.PublicKeyCredential || !navigator.credentials) return false;
+  try {
+    if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
+      return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    }
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function parentRecoveryFriendlyName(error) {
+  if (!error) return 'Verifikasi perangkat tidak berhasil.';
+  if (error.name === 'NotAllowedError') return 'Verifikasi dibatalkan atau tidak selesai.';
+  if (error.name === 'InvalidStateError') return 'Pemulihan perangkat ini perlu didaftarkan ulang.';
+  if (error.name === 'SecurityError') return 'Pemulihan perangkat tidak tersedia pada koneksi ini.';
+  return 'Face ID / Touch ID / kunci perangkat tidak dapat digunakan.';
+}
+
+async function registerParentRecoveryCredential() {
+  if (!hasParentPin()) throw new Error('PIN belum dibuat');
+  if (!(await parentPlatformAuthenticatorAvailable())) throw new Error('platform-authenticator-unavailable');
+
+  let userId = store.get('parentRecoveryUserId', '');
+  if (!userId) {
+    userId = bytesToBase64Url(randomBytes(32));
+    store.set('parentRecoveryUserId', userId);
+  }
+
+  const publicKey = {
+    challenge: randomBytes(32),
+    rp: { name: 'HafizKu' },
+    user: {
+      id: base64UrlToBytes(userId),
+      name: 'orang-tua-hafizku',
+      displayName: 'Orang Tua HafizKu'
+    },
+    pubKeyCredParams: [
+      { type: 'public-key', alg: -7 },
+      { type: 'public-key', alg: -257 }
+    ],
+    timeout: 60000,
+    attestation: 'none',
+    authenticatorSelection: {
+      authenticatorAttachment: 'platform',
+      residentKey: 'discouraged',
+      userVerification: 'required'
+    }
+  };
+
+  const credential = await navigator.credentials.create({ publicKey });
+  if (!credential || !credential.rawId) throw new Error('credential-not-created');
+
+  store.set('parentRecoveryCredentialId', bytesToBase64Url(credential.rawId));
+  store.set('parentRecoveryEnabledAt', Date.now());
+  return true;
+}
+
+async function verifyParentRecoveryCredential() {
+  const credentialId = store.get('parentRecoveryCredentialId', '');
+  if (!credentialId || !(await parentPlatformAuthenticatorAvailable())) return false;
+
+  const assertion = await navigator.credentials.get({
+    publicKey: {
+      challenge: randomBytes(32),
+      allowCredentials: [{
+        type: 'public-key',
+        id: base64UrlToBytes(credentialId)
+      }],
+      userVerification: 'required',
+      timeout: 60000
+    }
+  });
+
+  return Boolean(assertion && assertion.rawId);
+}
+
+async function refreshParentRecoveryControls() {
+  const status = $('parentRecoveryStatus');
+  const button = $('btnSetupParentRecovery');
+  const buttonText = $('parentRecoveryButtonText');
+  if (!status || !button || !buttonText) return;
+
+  const supported = await parentPlatformAuthenticatorAvailable();
+  const enrolled = hasParentRecoveryCredential();
+
+  status.classList.remove('is-on', 'is-off');
+  if (!supported) {
+    status.textContent = 'Tidak tersedia';
+    status.classList.add('is-off');
+    button.disabled = true;
+    buttonText.textContent = 'Tidak didukung di perangkat ini';
+    return;
+  }
+
+  button.disabled = !hasParentPin();
+  if (enrolled) {
+    status.textContent = 'Aktif';
+    status.classList.add('is-on');
+    buttonText.textContent = 'Daftarkan ulang perangkat';
+  } else {
+    status.textContent = 'Belum aktif';
+    status.classList.add('is-off');
+    buttonText.textContent = 'Aktifkan Face ID / Touch ID';
+  }
+}
+
+async function prepareParentResetAvailability() {
+  const button = $('btnHoldResetPin');
+  const label = $('holdResetText');
+  const help = $('parentResetHelp');
+  if (!button || !label || !help) return;
+
+  const supported = await parentPlatformAuthenticatorAvailable();
+  const enrolled = hasParentRecoveryCredential();
+  const available = supported && enrolled;
+
+  button.disabled = !available;
+  button.classList.toggle('is-unavailable', !available);
+
+  if (available) {
+    label.textContent = 'Tahan 10 detik untuk reset';
+    help.textContent = 'Tetap tekan sampai animasi penuh. Setelah itu Face ID / Touch ID / kunci perangkat akan diminta.';
+  } else if (!enrolled) {
+    label.textContent = 'Pemulihan perangkat belum aktif';
+    help.textContent = 'Reset dari app dinonaktifkan. Jika PIN benar-benar lupa, hapus data situs HafizKu lalu instal ulang. Progres lokal dapat ikut terhapus.';
+  } else {
+    label.textContent = 'Verifikasi perangkat tidak tersedia';
+    help.textContent = 'Reset dari app tidak tersedia pada perangkat ini. Hapus data situs HafizKu lalu instal ulang sebagai opsi terakhir.';
+  }
 }
 
 function bytesToHex(bytes) {
@@ -268,7 +427,8 @@ function setParentResetView(show) {
 
   if (show) {
     $('parentGateTitle').textContent = 'Lupa PIN?';
-    $('parentGateHint').textContent = 'Reset PIN lama dengan menahan tombol selama 10 detik.';
+    $('parentGateHint').textContent = 'Tahan 10 detik, lalu verifikasi Face ID / Touch ID / kunci perangkat.';
+    prepareParentResetAvailability();
   } else {
     updateParentGateCopy();
     setParentGateError('');
@@ -289,8 +449,7 @@ function cancelParentResetHold() {
   if (label && !parentGateState.resetHoldDone) label.textContent = 'Tahan 10 detik untuk reset';
 }
 
-function finishForgottenPinReset() {
-  parentGateState.resetHoldDone = true;
+function performForgottenPinReset() {
   store.del('parentPinHash');
   store.del('parentPinSalt');
   store.set('parentPinAttempts', 0);
@@ -312,9 +471,39 @@ function finishForgottenPinReset() {
   parentGateState.mode = 'setup-first';
   parentGateState.firstPin = '';
   updateParentGateCopy();
-  setParentGateError('PIN lama sudah direset. Buat PIN baru.');
+  setParentGateError('Identitas orang tua terverifikasi. PIN lama direset. Buat PIN baru.');
   resetParentPinInput();
   renderLevels();
+}
+
+async function completeForgottenPinResetHold() {
+  const button = $('btnHoldResetPin');
+  const label = $('holdResetText');
+  const help = $('parentResetHelp');
+  parentGateState.resetHoldDone = true;
+  parentGateState.resetHoldStartedAt = 0;
+  parentGateState.resetHoldFrame = 0;
+  if (button) {
+    button.classList.remove('is-holding');
+    button.style.setProperty('--hold-progress', '100%');
+    button.disabled = true;
+  }
+  if (label) label.textContent = 'Verifikasi perangkat…';
+  if (help) help.textContent = 'Gunakan Face ID / Touch ID / kunci perangkat untuk mengonfirmasi bahwa Anda orang tua.';
+
+  try {
+    const ok = await verifyParentRecoveryCredential();
+    if (!ok) throw new Error('recovery-verification-failed');
+    performForgottenPinReset();
+  } catch (error) {
+    parentGateState.resetHoldDone = false;
+    if (button) {
+      button.disabled = false;
+      button.style.setProperty('--hold-progress', '0%');
+    }
+    if (label) label.textContent = 'Tahan 10 detik untuk coba lagi';
+    if (help) help.textContent = parentRecoveryFriendlyName(error) + ' PIN belum diubah.';
+  }
 }
 
 function startParentResetHold(event) {
@@ -342,7 +531,7 @@ function startParentResetHold(event) {
     if (ratio >= 1) {
       parentGateState.resetHoldStartedAt = 0;
       parentGateState.resetHoldFrame = 0;
-      finishForgottenPinReset();
+      completeForgottenPinResetHold();
       return;
     }
     parentGateState.resetHoldFrame = requestAnimationFrame(tick);
@@ -383,7 +572,10 @@ function updateParentGateCopy() {
     submit.textContent = 'Masuk';
   }
   const forgot = $('btnForgotParentPin');
-  if (forgot) forgot.classList.toggle('hidden', !hasParentPin() || !['unlock','change-verify'].includes(mode));
+  const canRecover = hasParentPin() &&
+    parentGateState.attempts >= PARENT_FORGOT_VISIBLE_AFTER &&
+    ['unlock','change-verify'].includes(mode);
+  if (forgot) forgot.classList.toggle('hidden', !canRecover);
 }
 
 function openParentGate(mode) {
@@ -436,6 +628,7 @@ function applyParentGateLock() {
     if (input) input.disabled = false;
     if (submit) submit.disabled = false;
     setParentGateError('Silakan coba lagi.');
+    updateParentGateCopy();
     resetParentPinInput();
     return;
   }
@@ -456,6 +649,7 @@ function registerWrongParentPin() {
     return;
   }
   setParentGateError('PIN belum benar. ' + left + ' percobaan tersisa.');
+  updateParentGateCopy();
   resetParentPinInput();
 }
 
@@ -464,6 +658,7 @@ function updateParentSecurityControls() {
   const change = $('btnChangeParentPin');
   if (toggle) toggle.setAttribute('aria-checked', String(parentProtectionEnabled()));
   if (change) change.disabled = !hasParentPin();
+  refreshParentRecoveryControls();
 }
 
 function activateLevel(levelKey) {
@@ -539,7 +734,7 @@ async function submitParentPin(pin) {
       toast('Tab orang tua dibuka untuk sesi ini');
     } else {
       openSheet();
-      toast(changed ? 'PIN Orang Tua sudah diubah' : 'PIN Orang Tua aktif');
+      toast(changed ? 'PIN Orang Tua sudah diubah' : 'PIN aktif · aktifkan Face ID/Touch ID untuk pemulihan');
     }
     return;
   }
@@ -1261,6 +1456,22 @@ document.addEventListener('click', async e => {
     case 'btnChangeParentPin':
       beginChangeParentPin();
       break;
+    case 'btnSetupParentRecovery': {
+      const button = $('btnSetupParentRecovery');
+      const label = $('parentRecoveryButtonText');
+      if (button.disabled) break;
+      button.disabled = true;
+      if (label) label.textContent = 'Menunggu verifikasi perangkat…';
+      try {
+        await registerParentRecoveryCredential();
+        toast('Pemulihan Face ID / Touch ID aktif');
+      } catch (error) {
+        toast(parentRecoveryFriendlyName(error));
+      } finally {
+        refreshParentRecoveryControls();
+      }
+      break;
+    }
     case 'btnClearFocus':
       state.focus.clear();
       store.set('focus', []);
@@ -1296,7 +1507,7 @@ $('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSh
 $('parentGate').addEventListener('click', e => { if (e.target.id === 'parentGate') closeParentGate(); });
 $('btnCancelParentGate').addEventListener('click', () => closeParentGate());
 $('btnForgotParentPin').addEventListener('click', () => {
-  if (!hasParentPin()) return;
+  if (!hasParentPin() || parentGateState.attempts < PARENT_FORGOT_VISIBLE_AFTER) return;
   setParentResetView(true);
 });
 $('btnBackToPin').addEventListener('click', () => setParentResetView(false));
