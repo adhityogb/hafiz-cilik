@@ -290,8 +290,17 @@ function openParentGate(mode) {
   setParentGateError('');
   updateParentGateCopy();
   $('parentGate').classList.remove('hidden');
-  if (parentGateState.lockedUntil > Date.now()) applyParentGateLock();
-  else resetParentPinInput();
+  if (parentGateState.lockedUntil > Date.now()) {
+    applyParentGateLock();
+  } else {
+    if (parentGateState.lockedUntil) {
+      parentGateState.attempts = 0;
+      parentGateState.lockedUntil = 0;
+      store.set('parentPinAttempts', 0);
+      store.set('parentPinLockedUntil', 0);
+    }
+    resetParentPinInput();
+  }
 }
 
 function closeParentGate(restoreFocus = true) {
