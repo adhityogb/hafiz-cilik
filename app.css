@@ -406,3 +406,33 @@ html,body{touch-action:pan-x pan-y}
   .hold-reset__content{font-size:.94rem}
   .chip--locked{padding-left:30px}
 }
+
+
+/* Device recovery hardening v3 */
+.parent-recovery{border-color:#A7F3D0;background:rgba(240,253,250,.72)}
+.parent-recovery__status{
+  margin-left:auto;
+  padding:5px 9px;
+  border-radius:999px;
+  background:#E2E8F0;
+  color:#475569;
+  font-size:.72rem;
+  font-weight:900;
+  white-space:nowrap;
+}
+.parent-recovery__status.is-on{background:#DCFCE7;color:#166534}
+.parent-recovery__status.is-off{background:#FEF3C7;color:#92400E}
+.parent-recovery__button{margin-top:10px;min-height:46px;width:100%}
+.hold-reset:disabled{
+  cursor:not-allowed;
+  opacity:.72;
+  transform:none;
+  box-shadow:0 3px 0 #E2E8F0;
+  border-color:#CBD5E1;
+  color:#64748B;
+}
+.hold-reset.is-unavailable .hold-reset__fill{display:none}
+.parent-forgot.hidden{display:none!important}
+@media(max-width:430px){
+  .parent-recovery__status{font-size:.68rem;padding:4px 7px}
+}
