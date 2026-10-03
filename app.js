@@ -161,8 +161,8 @@ const PARENT_LOCK_MS = 30000;
 const parentGateState = {
   mode: 'unlock',
   firstPin: '',
-  attempts: 0,
-  lockedUntil: 0,
+  attempts: store.get('parentPinAttempts', 0),
+  lockedUntil: store.get('parentPinLockedUntil', 0),
   lockTimer: null
 };
 
@@ -215,6 +215,10 @@ async function saveParentPin(pin) {
   store.set('parentPinSalt', salt);
   store.set('parentPinHash', hash);
   store.set('parentGateEnabled', true);
+  store.set('parentPinAttempts', 0);
+  store.set('parentPinLockedUntil', 0);
+  parentGateState.attempts = 0;
+  parentGateState.lockedUntil = 0;
 }
 
 async function verifyParentPin(pin) {
@@ -281,18 +285,18 @@ function openParentGate(mode) {
   clearParentGateLockTimer();
   parentGateState.mode = mode || 'unlock';
   parentGateState.firstPin = '';
-  parentGateState.attempts = 0;
-  parentGateState.lockedUntil = 0;
+  parentGateState.attempts = store.get('parentPinAttempts', parentGateState.attempts || 0);
+  parentGateState.lockedUntil = store.get('parentPinLockedUntil', parentGateState.lockedUntil || 0);
   setParentGateError('');
   updateParentGateCopy();
   $('parentGate').classList.remove('hidden');
-  resetParentPinInput();
+  if (parentGateState.lockedUntil > Date.now()) applyParentGateLock();
+  else resetParentPinInput();
 }
 
 function closeParentGate(restoreFocus = true) {
   clearParentGateLockTimer();
   parentGateState.firstPin = '';
-  parentGateState.lockedUntil = 0;
   $('parentGate').classList.add('hidden');
   setParentGateError('');
   if (restoreFocus && $('btnSheet')) $('btnSheet').focus();
@@ -306,6 +310,8 @@ function applyParentGateLock() {
   if (remaining <= 0) {
     parentGateState.attempts = 0;
     parentGateState.lockedUntil = 0;
+    store.set('parentPinAttempts', 0);
+    store.set('parentPinLockedUntil', 0);
     if (input) input.disabled = false;
     if (submit) submit.disabled = false;
     setParentGateError('Silakan coba lagi.');
@@ -320,9 +326,11 @@ function applyParentGateLock() {
 
 function registerWrongParentPin() {
   parentGateState.attempts += 1;
+  store.set('parentPinAttempts', parentGateState.attempts);
   const left = PARENT_MAX_ATTEMPTS - parentGateState.attempts;
   if (left <= 0) {
     parentGateState.lockedUntil = Date.now() + PARENT_LOCK_MS;
+    store.set('parentPinLockedUntil', parentGateState.lockedUntil);
     applyParentGateLock();
     return;
   }
@@ -396,6 +404,9 @@ async function submitParentPin(pin) {
   }
 
   parentGateState.attempts = 0;
+  parentGateState.lockedUntil = 0;
+  store.set('parentPinAttempts', 0);
+  store.set('parentPinLockedUntil', 0);
   if (mode === 'change-verify') {
     parentGateState.mode = 'change-first';
     parentGateState.firstPin = '';
