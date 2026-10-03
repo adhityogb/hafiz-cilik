@@ -338,3 +338,71 @@ html,body{touch-action:pan-x pan-y}
   .parent-pin__input{height:64px;font-size:1.85rem}
   .target-actions{grid-template-columns:1fr}
 }
+
+
+/* Forgot PIN hold reset + locked level tabs */
+.parent-forgot{
+  margin:11px auto 0;
+  padding:6px 10px;
+  border:0;
+  background:transparent;
+  color:#0369A1;
+  font:800 .84rem var(--body);
+  text-decoration:underline;
+  text-underline-offset:3px;
+  cursor:pointer;
+}
+.parent-reset{display:grid;gap:12px;margin-top:4px}
+.parent-reset__warning{
+  display:grid;gap:4px;
+  padding:12px 13px;
+  border:2px solid #FDE68A;
+  border-radius:17px;
+  background:#FFFBEB;
+  color:#78350F;
+  text-align:left;
+}
+.parent-reset__warning b{font-family:var(--display);font-size:1rem}
+.parent-reset__warning span{font-size:.78rem;line-height:1.45;font-weight:700}
+.hold-reset{
+  --hold-progress:0%;
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  width:100%;
+  min-height:66px;
+  border:3px solid #F59E0B;
+  border-radius:20px;
+  background:#fff;
+  color:#92400E;
+  cursor:pointer;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  box-shadow:0 5px 0 #FDE68A;
+}
+.hold-reset__fill{
+  position:absolute;z-index:-1;inset:0 auto 0 0;
+  width:var(--hold-progress);
+  background:linear-gradient(90deg,#FEF08A,#FDE047);
+  transition:width .08s linear;
+}
+.hold-reset__content{
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  padding:12px 14px;
+  font-family:var(--display);font-size:1rem;font-weight:800;
+}
+.hold-reset__content .ico{width:23px;height:23px}
+.hold-reset.is-holding{transform:translateY(2px);box-shadow:0 2px 0 #FDE68A}
+.parent-reset__help{margin:0;color:#64748B;font-size:.75rem;line-height:1.45;font-weight:700}
+
+.chip--locked{position:relative;padding-left:32px}
+.chip__lock{position:absolute;left:10px;width:15px;height:15px;opacity:.72}
+.chip--locked:not([aria-pressed="true"]){border-color:#CBD5E1}
+.chip--locked:not([aria-pressed="true"]) small{color:#64748B}
+
+@media(max-width:430px){
+  .hold-reset{min-height:64px}
+  .hold-reset__content{font-size:.94rem}
+  .chip--locked{padding-left:30px}
+}
