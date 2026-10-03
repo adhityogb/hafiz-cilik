@@ -153,6 +153,263 @@ function stripBasmalahArabic(text) {
   return source.slice(i).replace(/^[۝۞،؛:،.\-–—]+/u, '').trim();
 }
 
+
+/* ---------- proteksi Pengaturan Orang Tua ---------- */
+const PARENT_PIN_LENGTH = 4;
+const PARENT_MAX_ATTEMPTS = 5;
+const PARENT_LOCK_MS = 30000;
+const parentGateState = {
+  mode: 'unlock',
+  firstPin: '',
+  attempts: 0,
+  lockedUntil: 0,
+  lockTimer: null
+};
+
+function parentProtectionEnabled() {
+  return store.get('parentGateEnabled', true) !== false;
+}
+
+function hasParentPin() {
+  return Boolean(store.get('parentPinHash', '') && store.get('parentPinSalt', ''));
+}
+
+function parentPinIsValid(pin) {
+  return /^[0-9]{4}$/.test(String(pin || ''));
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+}
+
+function makeParentSalt() {
+  if (window.crypto && window.crypto.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    return bytesToHex(bytes);
+  }
+  return String(Date.now()) + '-' + String(Math.random()).slice(2);
+}
+
+async function hashParentPin(pin, salt) {
+  const payload = String(salt) + ':' + String(pin);
+  if (window.crypto && window.crypto.subtle && window.TextEncoder) {
+    const data = new TextEncoder().encode(payload);
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return 'sha256:' + bytesToHex(new Uint8Array(digest));
+  }
+
+  // Fallback hanya untuk browser lama. Bukan kriptografi kuat, tetapi tetap
+  // menghindari penyimpanan PIN dalam bentuk angka mentah.
+  let hash = 2166136261;
+  for (let i = 0; i < payload.length; i++) {
+    hash ^= payload.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return 'fallback:' + (hash >>> 0).toString(16);
+}
+
+async function saveParentPin(pin) {
+  const salt = makeParentSalt();
+  const hash = await hashParentPin(pin, salt);
+  store.set('parentPinSalt', salt);
+  store.set('parentPinHash', hash);
+  store.set('parentGateEnabled', true);
+}
+
+async function verifyParentPin(pin) {
+  const salt = store.get('parentPinSalt', '');
+  const expected = store.get('parentPinHash', '');
+  if (!salt || !expected) return false;
+  return (await hashParentPin(pin, salt)) === expected;
+}
+
+function clearParentGateLockTimer() {
+  if (parentGateState.lockTimer) clearTimeout(parentGateState.lockTimer);
+  parentGateState.lockTimer = null;
+}
+
+function setParentGateError(message) {
+  const el = $('parentPinError');
+  if (el) el.textContent = message || '';
+}
+
+function resetParentPinInput() {
+  const input = $('parentPinInput');
+  if (!input) return;
+  input.value = '';
+  input.disabled = false;
+  $('btnParentPinSubmit').disabled = false;
+  requestAnimationFrame(() => input.focus());
+}
+
+function updateParentGateCopy() {
+  const title = $('parentGateTitle');
+  const hint = $('parentGateHint');
+  const submit = $('btnParentPinSubmit');
+  if (!title || !hint || !submit) return;
+
+  const mode = parentGateState.mode;
+  if (mode === 'setup-first') {
+    title.textContent = 'Buat PIN Orang Tua';
+    hint.textContent = 'Buat PIN 4 digit agar anak tidak dapat mengubah pengaturan.';
+    submit.textContent = 'Lanjut';
+  } else if (mode === 'setup-confirm') {
+    title.textContent = 'Ulangi PIN';
+    hint.textContent = 'Masukkan kembali PIN 4 digit yang baru dibuat.';
+    submit.textContent = 'Simpan PIN';
+  } else if (mode === 'change-verify') {
+    title.textContent = 'Ubah PIN';
+    hint.textContent = 'Masukkan PIN saat ini terlebih dahulu.';
+    submit.textContent = 'Lanjut';
+  } else if (mode === 'change-first') {
+    title.textContent = 'PIN Baru';
+    hint.textContent = 'Buat PIN baru 4 digit.';
+    submit.textContent = 'Lanjut';
+  } else if (mode === 'change-confirm') {
+    title.textContent = 'Ulangi PIN Baru';
+    hint.textContent = 'Masukkan kembali PIN baru untuk memastikan.';
+    submit.textContent = 'Simpan PIN';
+  } else {
+    title.textContent = 'Pengaturan Orang Tua';
+    hint.textContent = 'Masukkan PIN 4 digit untuk membuka pengaturan.';
+    submit.textContent = 'Masuk';
+  }
+}
+
+function openParentGate(mode) {
+  clearParentGateLockTimer();
+  parentGateState.mode = mode || 'unlock';
+  parentGateState.firstPin = '';
+  parentGateState.attempts = 0;
+  parentGateState.lockedUntil = 0;
+  setParentGateError('');
+  updateParentGateCopy();
+  $('parentGate').classList.remove('hidden');
+  resetParentPinInput();
+}
+
+function closeParentGate(restoreFocus = true) {
+  clearParentGateLockTimer();
+  parentGateState.firstPin = '';
+  parentGateState.lockedUntil = 0;
+  $('parentGate').classList.add('hidden');
+  setParentGateError('');
+  if (restoreFocus && $('btnSheet')) $('btnSheet').focus();
+}
+
+function applyParentGateLock() {
+  const remaining = Math.max(0, parentGateState.lockedUntil - Date.now());
+  const seconds = Math.ceil(remaining / 1000);
+  const input = $('parentPinInput');
+  const submit = $('btnParentPinSubmit');
+  if (remaining <= 0) {
+    parentGateState.attempts = 0;
+    parentGateState.lockedUntil = 0;
+    if (input) input.disabled = false;
+    if (submit) submit.disabled = false;
+    setParentGateError('Silakan coba lagi.');
+    resetParentPinInput();
+    return;
+  }
+  if (input) input.disabled = true;
+  if (submit) submit.disabled = true;
+  setParentGateError('Terlalu banyak percobaan. Coba lagi dalam ' + seconds + ' detik.');
+  parentGateState.lockTimer = setTimeout(applyParentGateLock, 1000);
+}
+
+function registerWrongParentPin() {
+  parentGateState.attempts += 1;
+  const left = PARENT_MAX_ATTEMPTS - parentGateState.attempts;
+  if (left <= 0) {
+    parentGateState.lockedUntil = Date.now() + PARENT_LOCK_MS;
+    applyParentGateLock();
+    return;
+  }
+  setParentGateError('PIN belum benar. ' + left + ' percobaan tersisa.');
+  resetParentPinInput();
+}
+
+function updateParentSecurityControls() {
+  const toggle = $('btnParentProtection');
+  const change = $('btnChangeParentPin');
+  if (toggle) toggle.setAttribute('aria-checked', String(parentProtectionEnabled()));
+  if (change) change.disabled = !hasParentPin();
+}
+
+function requestParentSettings() {
+  if (!parentProtectionEnabled()) {
+    openSheet();
+    return;
+  }
+  openParentGate(hasParentPin() ? 'unlock' : 'setup-first');
+}
+
+function beginChangeParentPin() {
+  closeSheet(false);
+  openParentGate('change-verify');
+}
+
+async function submitParentPin(pin) {
+  if (parentGateState.lockedUntil > Date.now()) {
+    applyParentGateLock();
+    return;
+  }
+  if (!parentPinIsValid(pin)) {
+    setParentGateError('PIN harus terdiri dari tepat 4 angka.');
+    resetParentPinInput();
+    return;
+  }
+
+  const mode = parentGateState.mode;
+  if (mode === 'setup-first' || mode === 'change-first') {
+    parentGateState.firstPin = pin;
+    parentGateState.mode = mode === 'setup-first' ? 'setup-confirm' : 'change-confirm';
+    setParentGateError('');
+    updateParentGateCopy();
+    resetParentPinInput();
+    return;
+  }
+
+  if (mode === 'setup-confirm' || mode === 'change-confirm') {
+    if (pin !== parentGateState.firstPin) {
+      const change = mode === 'change-confirm';
+      parentGateState.mode = change ? 'change-first' : 'setup-first';
+      parentGateState.firstPin = '';
+      updateParentGateCopy();
+      setParentGateError('PIN tidak sama. Silakan buat ulang.');
+      resetParentPinInput();
+      return;
+    }
+    await saveParentPin(pin);
+    const changed = mode === 'change-confirm';
+    closeParentGate(false);
+    openSheet();
+    toast(changed ? 'PIN Orang Tua sudah diubah' : 'PIN Orang Tua aktif');
+    return;
+  }
+
+  const ok = await verifyParentPin(pin);
+  if (!ok) {
+    registerWrongParentPin();
+    return;
+  }
+
+  parentGateState.attempts = 0;
+  if (mode === 'change-verify') {
+    parentGateState.mode = 'change-first';
+    parentGateState.firstPin = '';
+    setParentGateError('');
+    updateParentGateCopy();
+    resetParentPinInput();
+    return;
+  }
+
+  closeParentGate(false);
+  openSheet();
+}
+
+
 function toast(msg) {
   const t = $('toast');
   $('toastText').textContent = msg;
@@ -698,6 +955,14 @@ function renderFocusPicker() {
     <button class="focus-opt" type="button" data-focus="${s.id}" aria-pressed="${state.focus.has(s.id)}">
       <span>${s.id}</span><b>${esc(s.name)}</b>${state.focus.has(s.id) ? icon('i-check') : ''}
     </button>`).join('');
+
+  const count = $('focusCount');
+  const clear = $('btnClearFocus');
+  const use = $('btnUseFocus');
+  const total = state.focus.size;
+  if (count) count.textContent = total + (total === 1 ? ' surah dipilih' : ' surah dipilih');
+  if (clear) clear.disabled = total === 0;
+  if (use) use.disabled = total === 0;
 }
 
 function openSheet() {
@@ -705,14 +970,15 @@ function openSheet() {
   renderFocusPicker();
   const hideBtn = $('btnHideText');
   if (hideBtn) hideBtn.setAttribute('aria-checked', String(state.hideText));
+  updateParentSecurityControls();
   renderSegs();
   storageInfo();
   $('sheet').classList.remove('hidden');
   $('btnCloseSheet').focus();
 }
-function closeSheet() {
+function closeSheet(restoreFocus = true) {
   $('sheet').classList.add('hidden');
-  $('btnSheet').focus();
+  if (restoreFocus) $('btnSheet').focus();
 }
 
 /* ---------- kejadian ---------- */
@@ -809,8 +1075,37 @@ document.addEventListener('click', async e => {
     case 'btnBack': backHome(); break;
     case 'btnAll': toggleAll(); break;
     case 'btnSave': saveSurah(); break;
-    case 'btnSheet': openSheet(); break;
+    case 'btnSheet': requestParentSettings(); break;
     case 'btnCloseSheet': closeSheet(); break;
+    case 'btnParentProtection': {
+      const enabled = parentProtectionEnabled();
+      store.set('parentGateEnabled', !enabled);
+      updateParentSecurityControls();
+      toast(enabled ? 'Proteksi PIN dimatikan' : 'Proteksi PIN diaktifkan');
+      break;
+    }
+    case 'btnChangeParentPin':
+      beginChangeParentPin();
+      break;
+    case 'btnClearFocus':
+      state.focus.clear();
+      store.set('focus', []);
+      renderFocusPicker();
+      renderLevels();
+      if (state.level === 'focus') renderGrid();
+      toast('Target Hafalan dikosongkan');
+      break;
+    case 'btnUseFocus':
+      if (state.focus.size) {
+        state.level = 'focus';
+        store.set('level', state.level);
+        renderLevels();
+        renderGrid();
+        closeSheet();
+        window.scrollTo({ top: 0, behavior: 'auto' });
+        toast('Menampilkan Target Hafalan');
+      }
+      break;
     case 'btnClearAudio':
       if ('caches' in window) await caches.delete(AUDIO_CACHE);
       await scanSaved(); updateSaveBtn(); storageInfo(); renderGrid();
@@ -824,9 +1119,28 @@ document.addEventListener('click', async e => {
 });
 
 $('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+$('parentGate').addEventListener('click', e => { if (e.target.id === 'parentGate') closeParentGate(); });
+$('btnCancelParentGate').addEventListener('click', () => closeParentGate());
+$('parentPinInput').addEventListener('input', e => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, PARENT_PIN_LENGTH);
+  setParentGateError('');
+});
+$('parentPinForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const input = $('parentPinInput');
+  const submit = $('btnParentPinSubmit');
+  if (!input || submit.disabled) return;
+  submit.disabled = true;
+  try {
+    await submitParentPin(input.value);
+  } finally {
+    if (!parentGateState.lockedUntil && !$('parentGate').classList.contains('hidden')) submit.disabled = false;
+  }
+});
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    if (!$('installSheet').classList.contains('hidden')) closeInstallSheet();
+    if (!$('parentGate').classList.contains('hidden')) closeParentGate();
+    else if (!$('installSheet').classList.contains('hidden')) closeInstallSheet();
     else if (!$('sheet').classList.contains('hidden')) closeSheet();
     else if (state.playing) stopAll();
   }
@@ -838,7 +1152,11 @@ function suspendAudioSession() {
 }
 window.addEventListener('pagehide', suspendAudioSession);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') suspendAudioSession();
+  if (document.visibilityState === 'hidden') {
+    suspendAudioSession();
+    if (!$('sheet').classList.contains('hidden')) closeSheet(false);
+    if (!$('parentGate').classList.contains('hidden')) closeParentGate(false);
+  }
 });
 
 
