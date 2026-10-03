@@ -76,6 +76,9 @@ jobs:
           assert rows == expected, 'data.js id/start/n changed'
 
           assert './app.css' in index and './app.js' in index and './data.js' in index
+          assert 'id="parentGate"' in index and 'id="parentPinInput"' in index
+          assert 'parentGateEnabled' in app and 'hashParentPin' in app
+          assert 'user-scalable=no' in index and 'maximum-scale=1' in index
           assert manifest['name'].startswith('HafizKu')
           assert manifest['short_name'] == 'HafizKu'
           assert manifest['start_url'] == './' and manifest['scope'] == './'
