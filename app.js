@@ -158,12 +158,18 @@ function stripBasmalahArabic(text) {
 const PARENT_PIN_LENGTH = 4;
 const PARENT_MAX_ATTEMPTS = 5;
 const PARENT_LOCK_MS = 30000;
+const PARENT_RESET_HOLD_MS = 10000;
+let parentBrowseUnlocked = false;
 const parentGateState = {
   mode: 'unlock',
   firstPin: '',
   attempts: store.get('parentPinAttempts', 0),
   lockedUntil: store.get('parentPinLockedUntil', 0),
-  lockTimer: null
+  lockTimer: null,
+  pendingLevel: null,
+  resetHoldStartedAt: 0,
+  resetHoldFrame: 0,
+  resetHoldDone: false
 };
 
 function parentProtectionEnabled() {
@@ -247,6 +253,103 @@ function resetParentPinInput() {
   requestAnimationFrame(() => input.focus());
 }
 
+function setParentResetView(show) {
+  const form = $('parentPinForm');
+  const box = $('parentResetBox');
+  const note = $('parentGateNote');
+  const iconUse = $('parentGate') && $('parentGate').querySelector('.parent-gate__icon use');
+  if (!form || !box) return;
+
+  cancelParentResetHold();
+  form.classList.toggle('hidden', show);
+  box.classList.toggle('hidden', !show);
+  if (note) note.classList.toggle('hidden', show);
+  if (iconUse) iconUse.setAttribute('href', show ? '#i-refresh' : '#i-lock');
+
+  if (show) {
+    $('parentGateTitle').textContent = 'Lupa PIN?';
+    $('parentGateHint').textContent = 'Reset PIN lama dengan menahan tombol selama 10 detik.';
+  } else {
+    updateParentGateCopy();
+    setParentGateError('');
+    resetParentPinInput();
+  }
+}
+
+function cancelParentResetHold() {
+  if (parentGateState.resetHoldFrame) cancelAnimationFrame(parentGateState.resetHoldFrame);
+  parentGateState.resetHoldFrame = 0;
+  parentGateState.resetHoldStartedAt = 0;
+  const btn = $('btnHoldResetPin');
+  const label = $('holdResetText');
+  if (btn) {
+    btn.classList.remove('is-holding');
+    btn.style.setProperty('--hold-progress', '0%');
+  }
+  if (label && !parentGateState.resetHoldDone) label.textContent = 'Tahan 10 detik untuk reset';
+}
+
+function finishForgottenPinReset() {
+  parentGateState.resetHoldDone = true;
+  store.del('parentPinHash');
+  store.del('parentPinSalt');
+  store.set('parentPinAttempts', 0);
+  store.set('parentPinLockedUntil', 0);
+  store.set('parentGateEnabled', true);
+  parentGateState.attempts = 0;
+  parentGateState.lockedUntil = 0;
+  parentGateState.pendingLevel = null;
+  parentBrowseUnlocked = false;
+
+  cancelParentResetHold();
+  parentGateState.resetHoldDone = false;
+  $('parentResetBox').classList.add('hidden');
+  $('parentPinForm').classList.remove('hidden');
+  $('parentGateNote').classList.remove('hidden');
+  const iconUse = $('parentGate').querySelector('.parent-gate__icon use');
+  if (iconUse) iconUse.setAttribute('href', '#i-lock');
+
+  parentGateState.mode = 'setup-first';
+  parentGateState.firstPin = '';
+  updateParentGateCopy();
+  setParentGateError('PIN lama sudah direset. Buat PIN baru.');
+  resetParentPinInput();
+  renderLevels();
+}
+
+function startParentResetHold(event) {
+  if (!hasParentPin() || parentGateState.resetHoldStartedAt) return;
+  event.preventDefault();
+  const btn = $('btnHoldResetPin');
+  const label = $('holdResetText');
+  parentGateState.resetHoldDone = false;
+  parentGateState.resetHoldStartedAt = performance.now();
+  btn.classList.add('is-holding');
+
+  if (btn.setPointerCapture && event.pointerId !== undefined) {
+    try { btn.setPointerCapture(event.pointerId); } catch (error) {}
+  }
+
+  const tick = now => {
+    if (!parentGateState.resetHoldStartedAt) return;
+    const elapsed = now - parentGateState.resetHoldStartedAt;
+    const ratio = Math.min(1, elapsed / PARENT_RESET_HOLD_MS);
+    const pct = Math.round(ratio * 100);
+    const remain = Math.max(0, Math.ceil((PARENT_RESET_HOLD_MS - elapsed) / 1000));
+    btn.style.setProperty('--hold-progress', pct + '%');
+    if (label) label.textContent = ratio >= 1 ? 'Reset PIN…' : 'Tetap tahan · ' + remain + ' detik';
+
+    if (ratio >= 1) {
+      parentGateState.resetHoldStartedAt = 0;
+      parentGateState.resetHoldFrame = 0;
+      finishForgottenPinReset();
+      return;
+    }
+    parentGateState.resetHoldFrame = requestAnimationFrame(tick);
+  };
+  parentGateState.resetHoldFrame = requestAnimationFrame(tick);
+}
+
 function updateParentGateCopy() {
   const title = $('parentGateTitle');
   const hint = $('parentGateHint');
@@ -279,6 +382,8 @@ function updateParentGateCopy() {
     hint.textContent = 'Masukkan PIN 4 digit untuk membuka pengaturan.';
     submit.textContent = 'Masuk';
   }
+  const forgot = $('btnForgotParentPin');
+  if (forgot) forgot.classList.toggle('hidden', !hasParentPin() || !['unlock','change-verify'].includes(mode));
 }
 
 function openParentGate(mode) {
@@ -288,6 +393,11 @@ function openParentGate(mode) {
   parentGateState.attempts = store.get('parentPinAttempts', parentGateState.attempts || 0);
   parentGateState.lockedUntil = store.get('parentPinLockedUntil', parentGateState.lockedUntil || 0);
   setParentGateError('');
+  if ($('parentResetBox')) $('parentResetBox').classList.add('hidden');
+  if ($('parentPinForm')) $('parentPinForm').classList.remove('hidden');
+  if ($('parentGateNote')) $('parentGateNote').classList.remove('hidden');
+  const gateIcon = $('parentGate') && $('parentGate').querySelector('.parent-gate__icon use');
+  if (gateIcon) gateIcon.setAttribute('href', '#i-lock');
   updateParentGateCopy();
   $('parentGate').classList.remove('hidden');
   if (parentGateState.lockedUntil > Date.now()) {
@@ -305,7 +415,9 @@ function openParentGate(mode) {
 
 function closeParentGate(restoreFocus = true) {
   clearParentGateLockTimer();
+  cancelParentResetHold();
   parentGateState.firstPin = '';
+  parentGateState.pendingLevel = null;
   $('parentGate').classList.add('hidden');
   setParentGateError('');
   if (restoreFocus && $('btnSheet')) $('btnSheet').focus();
@@ -354,7 +466,25 @@ function updateParentSecurityControls() {
   if (change) change.disabled = !hasParentPin();
 }
 
+function activateLevel(levelKey) {
+  state.level = levelKey;
+  store.set('level', state.level);
+  renderLevels();
+  renderGrid();
+}
+
+function requestLevelChange(levelKey) {
+  if (levelKey === 'focus' || !parentProtectionEnabled() || parentBrowseUnlocked) {
+    activateLevel(levelKey);
+    return;
+  }
+
+  parentGateState.pendingLevel = levelKey;
+  openParentGate(hasParentPin() ? 'unlock' : 'setup-first');
+}
+
 function requestParentSettings() {
+  parentGateState.pendingLevel = null;
   if (!parentProtectionEnabled()) {
     openSheet();
     return;
@@ -400,9 +530,17 @@ async function submitParentPin(pin) {
     }
     await saveParentPin(pin);
     const changed = mode === 'change-confirm';
+    const pendingLevel = parentGateState.pendingLevel;
+    parentGateState.pendingLevel = null;
     closeParentGate(false);
-    openSheet();
-    toast(changed ? 'PIN Orang Tua sudah diubah' : 'PIN Orang Tua aktif');
+    if (pendingLevel) {
+      parentBrowseUnlocked = true;
+      activateLevel(pendingLevel);
+      toast('Tab orang tua dibuka untuk sesi ini');
+    } else {
+      openSheet();
+      toast(changed ? 'PIN Orang Tua sudah diubah' : 'PIN Orang Tua aktif');
+    }
     return;
   }
 
@@ -425,8 +563,16 @@ async function submitParentPin(pin) {
     return;
   }
 
+  const pendingLevel = parentGateState.pendingLevel;
+  parentGateState.pendingLevel = null;
   closeParentGate(false);
-  openSheet();
+  if (pendingLevel) {
+    parentBrowseUnlocked = true;
+    activateLevel(pendingLevel);
+    toast('Tab orang tua dibuka untuk sesi ini');
+  } else {
+    openSheet();
+  }
 }
 
 
@@ -469,10 +615,11 @@ function addStar(n) {
 
 /* ---------- layar 1: daftar surah ---------- */
 function renderLevels() {
+  const locked = parentProtectionEnabled() && !parentBrowseUnlocked;
   const focusChip = `<button class="chip chip--focus" type="button" data-level="focus" aria-pressed="${state.level === 'focus'}">Target Hafalan <small>${state.focus.size || 0} surah</small></button>`;
   $('levels').innerHTML = focusChip + LEVELS.map(l => `
-    <button class="chip" type="button" data-level="${l.key}" aria-pressed="${l.key === state.level}">
-      ${esc(l.label)} <small>${esc(l.hint)}</small>
+    <button class="chip ${locked ? 'chip--locked' : ''}" type="button" data-level="${l.key}" aria-pressed="${l.key === state.level}" ${locked ? 'aria-label="' + esc(l.label) + ', terkunci untuk anak"' : ''}>
+      ${locked ? icon('i-lock', 'chip__lock') : ''}${esc(l.label)} <small>${esc(l.hint)}</small>
     </button>`).join('');
   requestAnimationFrame(() => {
     const active = $('levels').querySelector('[aria-pressed="true"]');
@@ -1007,8 +1154,8 @@ document.addEventListener('click', async e => {
   if (!t) return;
 
   if (t.dataset.level) {
-    state.level = t.dataset.level; store.set('level', state.level);
-    renderLevels(); renderGrid(); return;
+    requestLevelChange(t.dataset.level);
+    return;
   }
   if (t.dataset.id) {
     const s = SURAHS.find(x => x.id === +t.dataset.id);
@@ -1100,6 +1247,13 @@ document.addEventListener('click', async e => {
     case 'btnParentProtection': {
       const enabled = parentProtectionEnabled();
       store.set('parentGateEnabled', !enabled);
+      parentBrowseUnlocked = enabled;
+      if (!enabled) {
+        parentBrowseUnlocked = false;
+        activateLevel('focus');
+      } else {
+        renderLevels();
+      }
       updateParentSecurityControls();
       toast(enabled ? 'Proteksi PIN dimatikan' : 'Proteksi PIN diaktifkan');
       break;
@@ -1141,6 +1295,18 @@ document.addEventListener('click', async e => {
 $('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 $('parentGate').addEventListener('click', e => { if (e.target.id === 'parentGate') closeParentGate(); });
 $('btnCancelParentGate').addEventListener('click', () => closeParentGate());
+$('btnForgotParentPin').addEventListener('click', () => {
+  if (!hasParentPin()) return;
+  setParentResetView(true);
+});
+$('btnBackToPin').addEventListener('click', () => setParentResetView(false));
+$('btnHoldResetPin').addEventListener('pointerdown', startParentResetHold);
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => {
+  $('btnHoldResetPin').addEventListener(type, () => {
+    if (!parentGateState.resetHoldDone) cancelParentResetHold();
+  });
+});
+$('btnHoldResetPin').addEventListener('contextmenu', e => e.preventDefault());
 $('parentPinInput').addEventListener('input', e => {
   e.target.value = e.target.value.replace(/\D/g, '').slice(0, PARENT_PIN_LENGTH);
   setParentGateError('');
@@ -1176,6 +1342,11 @@ document.addEventListener('visibilitychange', () => {
     suspendAudioSession();
     if (!$('sheet').classList.contains('hidden')) closeSheet(false);
     if (!$('parentGate').classList.contains('hidden')) closeParentGate(false);
+    if (parentProtectionEnabled()) {
+      parentBrowseUnlocked = false;
+      state.level = 'focus';
+      store.set('level', 'focus');
+    }
   }
 });
 
@@ -1294,6 +1465,11 @@ $('installSheet').addEventListener('click', event => {
 
 /* ---------- mulai ---------- */
 (async function init() {
+  if (parentProtectionEnabled()) {
+    parentBrowseUnlocked = false;
+    state.level = 'focus';
+    store.set('level', 'focus');
+  }
   renderSky();
   renderLevels();
   await migrateLegacyAudioCaches();
