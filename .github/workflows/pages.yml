@@ -87,6 +87,10 @@ jobs:
           assert "document.addEventListener('touchmove'" not in app, 'global touchmove blocker returned'
           assert "document.addEventListener('touchend'" not in app, 'global touchend blocker returned'
           assert "document.addEventListener('gesturestart'" not in app, 'global gesture blocker returned'
+          # Parent tabs: Target Hafalan is the only child-accessible tab while protection is active.
+          assert 'parentBrowseUnlocked' not in app, 'session-wide parent tab unlock must not return'
+          assert "const locked = parentProtectionEnabled();" in app
+          assert "levelKey === 'focus' || !parentProtectionEnabled()" in app
           assert manifest['name'].startswith('HafizKu')
           assert manifest['short_name'] == 'HafizKu'
           assert manifest['start_url'] == './' and manifest['scope'] == './'
