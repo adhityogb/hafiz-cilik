@@ -160,7 +160,6 @@ const PARENT_MAX_ATTEMPTS = 5;
 const PARENT_LOCK_MS = 30000;
 const PARENT_RESET_HOLD_MS = 10000;
 const PARENT_FORGOT_VISIBLE_AFTER = 3;
-let parentBrowseUnlocked = false;
 const parentGateState = {
   mode: 'unlock',
   firstPin: '',
@@ -454,7 +453,6 @@ function performForgottenPinReset() {
   parentGateState.attempts = 0;
   parentGateState.lockedUntil = 0;
   parentGateState.pendingLevel = null;
-  parentBrowseUnlocked = false;
 
   cancelParentResetHold();
   parentGateState.resetHoldDone = false;
@@ -574,8 +572,14 @@ function updateParentGateCopy() {
     hint.textContent = 'Masukkan kembali PIN baru untuk memastikan.';
     submit.textContent = 'Simpan PIN';
   } else {
-    title.textContent = 'Pengaturan Orang Tua';
-    hint.textContent = 'Masukkan PIN 4 digit untuk membuka pengaturan.';
+    if (parentGateState.pendingLevel) {
+      const level = LEVELS.find(item => item.key === parentGateState.pendingLevel);
+      title.textContent = level ? 'Buka ' + level.label : 'Buka Tab';
+      hint.textContent = 'Masukkan PIN 4 digit Orang Tua untuk membuka tab ini.';
+    } else {
+      title.textContent = 'Pengaturan Orang Tua';
+      hint.textContent = 'Masukkan PIN 4 digit untuk membuka pengaturan.';
+    }
     submit.textContent = 'Masuk';
   }
   const forgot = $('btnForgotParentPin');
@@ -676,7 +680,7 @@ function activateLevel(levelKey) {
 }
 
 function requestLevelChange(levelKey) {
-  if (levelKey === 'focus' || !parentProtectionEnabled() || parentBrowseUnlocked) {
+  if (levelKey === 'focus' || !parentProtectionEnabled()) {
     activateLevel(levelKey);
     return;
   }
@@ -736,9 +740,8 @@ async function submitParentPin(pin) {
     parentGateState.pendingLevel = null;
     closeParentGate(false);
     if (pendingLevel) {
-      parentBrowseUnlocked = true;
       activateLevel(pendingLevel);
-      toast('Tab orang tua dibuka untuk sesi ini');
+      toast('Tab dibuka dengan PIN Orang Tua');
     } else {
       openSheet();
       toast(changed ? 'PIN Orang Tua sudah diubah' : 'PIN aktif · aktifkan Face ID/Touch ID untuk pemulihan');
@@ -769,9 +772,8 @@ async function submitParentPin(pin) {
   parentGateState.pendingLevel = null;
   closeParentGate(false);
   if (pendingLevel) {
-    parentBrowseUnlocked = true;
     activateLevel(pendingLevel);
-    toast('Tab orang tua dibuka untuk sesi ini');
+    toast('Tab dibuka dengan PIN Orang Tua');
   } else {
     openSheet();
   }
@@ -817,7 +819,7 @@ function addStar(n) {
 
 /* ---------- layar 1: daftar surah ---------- */
 function renderLevels() {
-  const locked = parentProtectionEnabled() && !parentBrowseUnlocked;
+  const locked = parentProtectionEnabled();
   const focusChip = `<button class="chip chip--focus" type="button" data-level="focus" aria-pressed="${state.level === 'focus'}">Target Hafalan <small>${state.focus.size || 0} surah</small></button>`;
   $('levels').innerHTML = focusChip + LEVELS.map(l => `
     <button class="chip ${locked ? 'chip--locked' : ''}" type="button" data-level="${l.key}" aria-pressed="${l.key === state.level}" ${locked ? 'aria-label="' + esc(l.label) + ', terkunci untuk anak"' : ''}>
@@ -1449,9 +1451,7 @@ document.addEventListener('click', async e => {
     case 'btnParentProtection': {
       const enabled = parentProtectionEnabled();
       store.set('parentGateEnabled', !enabled);
-      parentBrowseUnlocked = enabled;
       if (!enabled) {
-        parentBrowseUnlocked = false;
         activateLevel('focus');
       } else {
         renderLevels();
@@ -1561,7 +1561,6 @@ document.addEventListener('visibilitychange', () => {
     if (!$('sheet').classList.contains('hidden')) closeSheet(false);
     if (!$('parentGate').classList.contains('hidden')) closeParentGate(false);
     if (parentProtectionEnabled()) {
-      parentBrowseUnlocked = false;
       state.level = 'focus';
       store.set('level', 'focus');
     }
@@ -1666,7 +1665,6 @@ $('installSheet').addEventListener('click', event => {
 /* ---------- mulai ---------- */
 (async function init() {
   if (parentProtectionEnabled()) {
-    parentBrowseUnlocked = false;
     state.level = 'focus';
     store.set('level', 'focus');
   }
