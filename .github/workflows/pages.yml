@@ -78,6 +78,10 @@ jobs:
           assert './app.css' in index and './app.js' in index and './data.js' in index
           assert 'id="parentGate"' in index and 'id="parentPinInput"' in index
           assert 'parentGateEnabled' in app and 'hashParentPin' in app
+          assert 'PARENT_FORGOT_VISIBLE_AFTER = 3' in app
+          assert 'navigator.credentials.create' in app and 'navigator.credentials.get' in app
+          assert 'userVerification: \'required\'' in app
+          assert 'id="btnSetupParentRecovery"' in index and 'id="btnHoldResetPin"' in index
           assert 'user-scalable=no' in index and 'maximum-scale=1' in index
           assert manifest['name'].startswith('HafizKu')
           assert manifest['short_name'] == 'HafizKu'
