@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Nunito:wght@600;700;800&family=Amiri+Quran&display=swap">
 
-<link rel="stylesheet" href="./app.css?v=20261003a">
+<link rel="stylesheet" href="./app.css?v=20261003b">
 </head>
 <body>
 
@@ -201,7 +201,25 @@
         <button class="btn btn--soft" id="btnCancelParentGate" type="button">Batal</button>
         <button class="btn btn--go" id="btnParentPinSubmit" type="submit">Masuk</button>
       </div>
+      <button class="parent-forgot" id="btnForgotParentPin" type="button">Lupa PIN?</button>
     </form>
+
+    <div class="parent-reset hidden" id="parentResetBox">
+      <div class="parent-reset__warning">
+        <b>Reset hanya PIN Orang Tua</b>
+        <span>Bintang, target hafalan, audio offline, dan progres anak tidak akan dihapus.</span>
+      </div>
+      <button class="hold-reset" id="btnHoldResetPin" type="button" aria-describedby="parentResetHelp">
+        <span class="hold-reset__fill" aria-hidden="true"></span>
+        <span class="hold-reset__content">
+          <svg class="ico" aria-hidden="true"><use href="#i-refresh"></use></svg>
+          <span id="holdResetText">Tahan 10 detik untuk reset</span>
+        </span>
+      </button>
+      <p class="parent-reset__help" id="parentResetHelp">Tetap tekan sampai animasi penuh. Lepaskan untuk membatalkan.</p>
+      <button class="parent-forgot" id="btnBackToPin" type="button">Kembali ke PIN</button>
+    </div>
+
     <p class="parent-gate__note" id="parentGateNote">PIN hanya tersimpan di perangkat ini. Proteksi ini dibuat untuk membatasi akses anak ke pengaturan, bukan sebagai sistem keamanan akun.</p>
   </div>
 </div>
@@ -319,7 +337,7 @@
   <span id="toastText"></span>
 </div>
 
-<script src="./data.js?v=20261003a"></script>
-<script src="./app.js?v=20261003a"></script>
+<script src="./data.js?v=20261003b"></script>
+<script src="./app.js?v=20261003b"></script>
 </body>
 </html>
