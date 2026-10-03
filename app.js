@@ -1569,27 +1569,9 @@ document.addEventListener('visibilitychange', () => {
 });
 
 
-/* ---------- kunci zoom PWA/mobile ---------- */
-function lockAppZoom() {
-  const preventGesture = event => event.preventDefault();
-  ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
-    document.addEventListener(type, preventGesture, { passive: false });
-  });
-
-  document.addEventListener('touchmove', event => {
-    if (event.touches && event.touches.length > 1) event.preventDefault();
-  }, { passive: false });
-
-  let lastTextTap = 0;
-  document.addEventListener('touchend', event => {
-    const interactive = event.target && event.target.closest && event.target.closest('button,a,input,select,textarea');
-    const now = Date.now();
-    if (!interactive && now - lastTextTap < 300) event.preventDefault();
-    lastTextTap = now;
-  }, { passive: false });
-}
-lockAppZoom();
-
+/* ---------- zoom lock mobile ----------
+   Jangan gunakan preventDefault() pada touch/gesture global di iOS.
+   Meta viewport + touch-action CSS menjaga skala tanpa mematikan tap/click. */
 /* ---------- pasang di layar utama ---------- */
 let installTrigger = null;
 
